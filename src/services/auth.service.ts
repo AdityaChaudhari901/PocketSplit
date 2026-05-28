@@ -39,7 +39,7 @@ const toProfile = (row: ProfileRow): Profile => ({
 
 const displayNameFromEmail = (email: string): string => email.split("@")[0]?.replace(/[._-]+/g, " ") || "User";
 
-const demoProfile = (email = "demo@moneypulse.ai"): Profile => {
+const demoProfile = (email = "demo@pocketsplit.app"): Profile => {
   const now = new Date().toISOString();
   return {
     id: DEMO_USER_ID,

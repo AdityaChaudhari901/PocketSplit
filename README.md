@@ -1,4 +1,4 @@
-# MoneyPulse AI
+# PocketSplit
 
 Production-oriented Expo/React Native foundation for an AI-powered personal and split expense tracker.
 
@@ -7,7 +7,7 @@ Production-oriented Expo/React Native foundation for an AI-powered personal and 
 - Expo Router navigation with `Home | Split | Add | AI | Reports`
 - First-launch onboarding with feature intro, plan selection, and Free plan fallback entry
 - Personal income/expense tracking with integer minor-unit money math
-- Money Pulse dashboard, safe daily spend, budgets, and report cards
+- PocketSplit dashboard, safe daily spend, budgets, and report cards
 - Smart Bills & Subscription Guard for recurring bills, reminders, and safer daily-spend forecasting
 - Savings Goals with planned monthly reserves that reduce spendable cash before daily budget calculations
 - Splitwise-style group expenses with balances and greedy settlement simplification

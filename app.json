@@ -1,23 +1,23 @@
 {
   "expo": {
-    "name": "MoneyPulse AI",
-    "slug": "moneypulse-ai",
-    "scheme": "moneypulse",
+    "name": "PocketSplit",
+    "slug": "pocketsplit",
+    "scheme": "pocketsplit",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.moneypulse.ai",
+      "bundleIdentifier": "com.pocketsplit.app",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "MoneyPulse AI uses Face ID to protect access to your financial data.",
-        "NSCameraUsageDescription": "MoneyPulse AI uses the camera to scan receipt images.",
-        "NSPhotoLibraryUsageDescription": "MoneyPulse AI needs photo access so you can upload receipt images and payment proofs."
+        "NSFaceIDUsageDescription": "PocketSplit uses Face ID to protect access to your financial data.",
+        "NSCameraUsageDescription": "PocketSplit uses the camera to scan receipt images.",
+        "NSPhotoLibraryUsageDescription": "PocketSplit needs photo access so you can upload receipt images and payment proofs."
       }
     },
     "android": {
-      "package": "com.moneypulse.ai",
+      "package": "com.pocketsplit.app",
       "permissions": ["CAMERA", "USE_BIOMETRIC", "POST_NOTIFICATIONS"]
     },
     "plugins": [
@@ -27,14 +27,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "MoneyPulse AI needs photo access so you can upload receipt images and payment proofs.",
-          "cameraPermission": "MoneyPulse AI uses the camera to scan receipt images."
+          "photosPermission": "PocketSplit needs photo access so you can upload receipt images and payment proofs.",
+          "cameraPermission": "PocketSplit uses the camera to scan receipt images."
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#6366F1"
+          "color": "#1769E0"
         }
       ]
     ],

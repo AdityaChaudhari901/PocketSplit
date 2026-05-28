@@ -638,7 +638,7 @@ export const useAppStore = create<AppState>()(
       }
     }),
     {
-      name: "moneypulse-store-v1",
+      name: "pocketsplit-store-v1",
       version: 10,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persistedState) => {

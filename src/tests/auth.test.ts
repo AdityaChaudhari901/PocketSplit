@@ -28,7 +28,7 @@ describe("auth service", () => {
     const result = await signInDemo();
 
     expect(result.mode).toBe("local");
-    expect(result.profile.email).toBe("demo@moneypulse.ai");
+    expect(result.profile.email).toBe("demo@pocketsplit.app");
   });
 
   it("blocks explicit demo sign in in production", async () => {

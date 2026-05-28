@@ -40,7 +40,7 @@ export const scheduleBudgetReminder = async (): Promise<string | null> => {
 
   return Notifications.scheduleNotificationAsync({
     content: {
-      title: "MoneyPulse check-in",
+      title: "PocketSplit check-in",
       body: "Review your safe daily spend before today gets busy."
     },
     trigger: {

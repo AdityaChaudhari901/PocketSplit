@@ -50,6 +50,6 @@ export const isLocalDemoAuthEnabled = (): boolean => isDemoModeEnabled() && !isS
 
 export const assertProductionClientConfig = (): void => {
   if (isProductionEnv() && !isSupabaseConfigured()) {
-    throw new Error("Supabase must be configured before running MoneyPulse AI in production.");
+    throw new Error("Supabase must be configured before running PocketSplit in production.");
   }
 };

@@ -9,7 +9,7 @@ export const FeatureOrb = () => {
 
   return (
     <View
-      accessibilityLabel="MoneyPulse AI insight preview"
+      accessibilityLabel="PocketSplit insight preview"
       style={[
         styles.stage,
         {

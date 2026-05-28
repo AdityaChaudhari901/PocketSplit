@@ -37,7 +37,7 @@ export const CurrencyScreen = () => {
 
     Alert.alert(
       `Use ${currency}?`,
-      "MoneyPulse is single-currency right now. This updates the display currency for all local money records; it does not convert existing amounts.",
+      "PocketSplit is single-currency right now. This updates the display currency for all local money records; it does not convert existing amounts.",
       [
         { text: "Cancel", style: "cancel" },
         {

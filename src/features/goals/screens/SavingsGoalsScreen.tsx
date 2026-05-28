@@ -49,7 +49,7 @@ export const SavingsGoalsScreen = () => {
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <AppText variant="hero">Savings goals</AppText>
-          <AppText muted>Reserve planned contributions before MoneyPulse calculates daily spend.</AppText>
+          <AppText muted>Reserve planned contributions before PocketSplit calculates daily spend.</AppText>
         </View>
         <Button icon="add-circle" onPress={() => router.push("/modals/savings-goal-form")}>
           Add

@@ -3,6 +3,10 @@ import { useRouter } from "expo-router";
 import { Alert, Pressable, StyleSheet, Switch, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { Badge, BadgeText } from "@/components/gluestack/badge";
+import { Card as GluestackCard } from "@/components/gluestack/card";
+import { HStack } from "@/components/gluestack/hstack";
+import { VStack } from "@/components/gluestack/vstack";
 import { AppText } from "@/components/ui/AppText";
 import { Button } from "@/components/ui/Button";
 import { Screen } from "@/components/ui/Screen";
@@ -119,9 +123,16 @@ export const SettingsScreen = () => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <View style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <SettingsRow icon="mail-outline" title={t("settings.email")} value={profile.email || t("settings.notSet")} />
-        <SettingsRow icon="person-outline" title={t("settings.username")} value={profile.displayName || t("settings.userFallback")} />
+      <AccountSummaryCard
+        displayName={profile.displayName || t("settings.userFallback")}
+        email={profile.email || t("settings.notSet")}
+        initial={profileInitial(profile.displayName)}
+        isPaidPlan={isPaidPlan}
+        planName={planLabel(resolvedPlan, t)}
+        statusLabel={isPaidPlan ? t("common.active") : t("settings.plan.free")}
+      />
+
+      <GluestackCard size="md" variant="outline" className="p-0 overflow-hidden" style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <SettingsRow icon="cash-outline" title={t("settings.currency")} value={`${profile.currency} - ${currencyName}`} onPress={() => router.push("/modals/currency")} />
         <SettingsRow icon="language-outline" title={t("settings.language")} value={languageName} onPress={() => router.push("/modals/language")} />
         <SettingsSwitchRow
@@ -132,56 +143,139 @@ export const SettingsScreen = () => {
           onValueChange={(enabled) => setThemeMode(enabled ? "dark" : "light")}
         />
         <SettingsRow icon="shield-checkmark-outline" title={t("settings.privacy")} onPress={() => router.push("/modals/privacy-security")} />
-      </View>
+      </GluestackCard>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t("settings.premiumStatus")}
+      <PlanStatusCard
+        activeLabel={t("common.active")}
+        inactiveLabel={t("common.inactive")}
+        isPaidPlan={isPaidPlan}
         onPress={() => router.push("/modals/paywall")}
-        style={({ pressed }) => [
-          styles.subscriptionCard,
-          { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-          pressed ? styles.pressed : null
-        ]}
-      >
-        <View style={styles.subscriptionLeft}>
-          <View style={[styles.tinyIcon, { backgroundColor: theme.colors.primarySoft }]}>
-            <Ionicons name="diamond" size={16} color={theme.colors.primary} />
-          </View>
-          <AppText variant="body">{t("settings.premiumStatus")}</AppText>
-        </View>
-        <View style={styles.subscriptionRight}>
-          <AppText variant="body" style={{ color: isPaidPlan ? theme.colors.success : theme.colors.warning }}>
-            {isPaidPlan ? t("common.active") : t("common.inactive")}
-          </AppText>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.warning} />
-        </View>
-      </Pressable>
+        planName={planLabel(resolvedPlan, t)}
+        title={t("settings.premiumStatus")}
+      />
 
-      <View style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <GluestackCard size="md" variant="outline" className="p-0 overflow-hidden" style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <SettingsRow icon="repeat-outline" title={t("settings.recurringBills")} subtitle={t("settings.recurringBills.subtitle")} onPress={() => router.push("/modals/recurring-bills")} />
         <SettingsRow icon="flag-outline" title={t("settings.savingsGoals")} subtitle={t("settings.savingsGoals.subtitle")} onPress={() => router.push("/modals/savings-goals")} />
         <SettingsRow icon="pricetags-outline" title={t("settings.categories")} subtitle={t("settings.categories.subtitle")} onPress={() => router.push("/modals/categories")} />
-      </View>
+      </GluestackCard>
 
-      <View style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <GluestackCard size="md" variant="outline" className="p-0 overflow-hidden" style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <SettingsRow icon="notifications-outline" title={t("settings.dailyBudgetReminder")} subtitle={t("settings.dailyBudgetReminder.subtitle")} tone="primary" onPress={enableReminder} />
         <SettingsRow icon="download-outline" title={t("settings.dataExport")} subtitle={t("settings.dataExport.subtitle")} onPress={() => router.push("/modals/data-export")} />
         <SettingsRow icon="trash-outline" title={t("settings.deleteAccount")} tone="danger" onPress={() => router.push("/modals/delete-account")} />
-      </View>
+      </GluestackCard>
 
-      <View style={[styles.sessionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <View>
+      <GluestackCard size="md" variant="outline" className="gap-4" style={[styles.sessionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <VStack space="xs">
           <AppText variant="caption" muted>
             {t("settings.currentPlan")}
           </AppText>
           <AppText variant="subtitle">{planLabel(resolvedPlan, t)}</AppText>
-        </View>
+        </VStack>
         <Button variant="danger" icon="log-out-outline" loading={signingOut} onPress={handleSignOut}>
           {t("settings.signOut")}
         </Button>
-      </View>
+      </GluestackCard>
     </Screen>
+  );
+};
+
+const profileInitial = (displayName: string): string => displayName.trim().charAt(0).toUpperCase() || "M";
+
+const AccountSummaryCard = ({
+  displayName,
+  email,
+  initial,
+  isPaidPlan,
+  planName,
+  statusLabel
+}: {
+  displayName: string;
+  email: string;
+  initial: string;
+  isPaidPlan: boolean;
+  planName: string;
+  statusLabel: string;
+}) => {
+  const theme = useAppTheme();
+
+  return (
+    <GluestackCard
+      size="lg"
+      variant="outline"
+      className="gap-4"
+      style={[styles.accountCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.primaryBorder, shadowColor: theme.colors.shadow }]}
+    >
+      <HStack style={styles.accountRow}>
+        <View style={[styles.accountAvatar, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primaryBorder }]}>
+          <AppText style={[styles.accountAvatarText, { color: theme.colors.primary }]}>{initial}</AppText>
+        </View>
+        <VStack style={styles.accountCopy} space="xs">
+          <AppText variant="title" numberOfLines={1}>
+            {displayName}
+          </AppText>
+          <AppText variant="caption" muted numberOfLines={1}>
+            {email}
+          </AppText>
+        </VStack>
+      </HStack>
+      <HStack style={styles.accountMetaRow}>
+        <Badge action={isPaidPlan ? "success" : "muted"} size="sm" variant="solid" style={styles.metaBadge}>
+          <BadgeText>{planName}</BadgeText>
+        </Badge>
+        <Badge action={isPaidPlan ? "success" : "warning"} size="sm" variant="solid" style={styles.metaBadge}>
+          <BadgeText>{statusLabel}</BadgeText>
+        </Badge>
+      </HStack>
+    </GluestackCard>
+  );
+};
+
+const PlanStatusCard = ({
+  activeLabel,
+  inactiveLabel,
+  isPaidPlan,
+  onPress,
+  planName,
+  title
+}: {
+  activeLabel: string;
+  inactiveLabel: string;
+  isPaidPlan: boolean;
+  onPress: () => void;
+  planName: string;
+  title: string;
+}) => {
+  const theme = useAppTheme();
+  const statusColor = isPaidPlan ? theme.colors.success : theme.colors.warning;
+
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => (pressed ? styles.pressed : null)}>
+      <GluestackCard
+        size="md"
+        variant="outline"
+        style={[styles.subscriptionCard, { backgroundColor: theme.colors.surface, borderColor: isPaidPlan ? theme.colors.successBorder : theme.colors.warningBorder }]}
+      >
+        <HStack style={styles.subscriptionRow}>
+          <View style={[styles.tinyIcon, { backgroundColor: isPaidPlan ? theme.colors.successSoft : theme.colors.warningSoft }]}>
+            <Ionicons name="diamond" size={16} color={statusColor} />
+          </View>
+          <VStack style={styles.subscriptionCopy} space="xs">
+            <AppText variant="body">{title}</AppText>
+            <AppText variant="caption" muted numberOfLines={1}>
+              {planName}
+            </AppText>
+          </VStack>
+          <HStack style={styles.subscriptionRight}>
+            <AppText variant="body" style={{ color: statusColor }}>
+              {isPaidPlan ? activeLabel : inactiveLabel}
+            </AppText>
+            <Ionicons name="chevron-forward" size={20} color={statusColor} />
+          </HStack>
+        </HStack>
+      </GluestackCard>
+    </Pressable>
   );
 };
 
@@ -209,11 +303,11 @@ const SettingsRow = ({ title, subtitle, value, icon, tone = "default", onPress }
             : theme.colors.surfaceMuted;
 
   const rowContent = (
-    <>
+    <HStack style={styles.rowInner}>
       <View style={[styles.rowIcon, { backgroundColor: iconBackground }]}>
         <Ionicons name={icon} size={18} color={iconColor} />
       </View>
-      <View style={styles.rowCopy}>
+      <VStack style={styles.rowCopy} space="xs">
         <AppText variant="body" style={tone === "danger" ? { color: theme.colors.danger } : undefined}>
           {title}
         </AppText>
@@ -222,14 +316,14 @@ const SettingsRow = ({ title, subtitle, value, icon, tone = "default", onPress }
             {subtitle}
           </AppText>
         ) : null}
-      </View>
+      </VStack>
       {value ? (
         <AppText variant="caption" muted numberOfLines={1} style={styles.rowValue}>
           {value}
         </AppText>
       ) : null}
       {onPress ? <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} /> : null}
-    </>
+    </HStack>
   );
 
   if (!onPress) {
@@ -247,18 +341,18 @@ const SettingsSwitchRow = ({ title, subtitle, icon, value, onValueChange }: Sett
   const theme = useAppTheme();
 
   return (
-    <View style={styles.row}>
+    <HStack style={styles.row}>
       <View style={[styles.rowIcon, { backgroundColor: value ? theme.colors.primarySoft : theme.colors.surfaceMuted }]}>
         <Ionicons name={icon} size={18} color={value ? theme.colors.primary : theme.colors.text} />
       </View>
-      <View style={styles.rowCopy}>
+      <VStack style={styles.rowCopy} space="xs">
         <AppText variant="body">{title}</AppText>
         {subtitle ? (
           <AppText variant="caption" muted numberOfLines={1}>
             {subtitle}
           </AppText>
         ) : null}
-      </View>
+      </VStack>
       <Switch
         accessibilityLabel={title}
         value={value}
@@ -266,7 +360,7 @@ const SettingsSwitchRow = ({ title, subtitle, icon, value, onValueChange }: Sett
         trackColor={{ false: theme.colors.surfaceMuted, true: theme.colors.primarySoft }}
         thumbColor={value ? theme.colors.primary : theme.colors.subtext}
       />
-    </View>
+    </HStack>
   );
 };
 
@@ -298,8 +392,9 @@ const styles = StyleSheet.create({
     height: 56
   },
   group: {
-    borderRadius: 28,
+    borderRadius: 24,
     borderWidth: 1,
+    padding: 0,
     overflow: "hidden"
   },
   row: {
@@ -308,6 +403,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+    gap: spacing.md
+  },
+  rowInner: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md
   },
   rowIcon: {
@@ -328,20 +430,62 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.72
   },
+  accountCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: spacing.lg,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.1,
+    shadowRadius: 28,
+    elevation: 2
+  },
+  accountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md
+  },
+  accountAvatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  accountAvatarText: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "900"
+  },
+  accountCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  accountMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  metaBadge: {
+    borderRadius: 999,
+    minHeight: 28,
+    paddingHorizontal: spacing.sm
+  },
   subscriptionCard: {
-    minHeight: 74,
+    minHeight: 86,
     borderRadius: 22,
     borderWidth: 1,
-    paddingHorizontal: spacing.lg,
+    padding: spacing.lg
+  },
+  subscriptionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md
   },
-  subscriptionLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md
+  subscriptionCopy: {
+    flex: 1,
+    minWidth: 0
   },
   subscriptionRight: {
     flexDirection: "row",
@@ -358,7 +502,6 @@ const styles = StyleSheet.create({
   sessionCard: {
     borderRadius: 24,
     borderWidth: 1,
-    padding: spacing.lg,
-    gap: spacing.lg
+    padding: spacing.lg
   }
 });

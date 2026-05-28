@@ -20,7 +20,7 @@ const FEATURES = [
   {
     icon: "pulse" as const,
     title: "Know what is safe to spend today.",
-    body: "MoneyPulse blends income, expenses, bills, budgets, and savings goals into one daily number."
+    body: "PocketSplit blends income, expenses, bills, budgets, and savings goals into one daily number."
   },
   {
     icon: "receipt" as const,

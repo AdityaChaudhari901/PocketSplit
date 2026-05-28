@@ -1,13 +1,19 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { TransactionRow } from "@/components/cards/TransactionRow";
+import { Badge as GluestackBadge, BadgeText } from "@/components/gluestack/badge";
+import { Card as GluestackCard } from "@/components/gluestack/card";
+import { HStack } from "@/components/gluestack/hstack";
+import { Progress, ProgressFilledTrack } from "@/components/gluestack/progress";
+import { VStack } from "@/components/gluestack/vstack";
 import { AppText } from "@/components/ui/AppText";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/ui/Screen";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { daysRemainingInMonth } from "@/lib/dates";
 import { useTranslation } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
 import { spacing, useAppTheme, type AppTheme } from "@/lib/theme";
@@ -27,6 +33,8 @@ interface HomeInsight {
 }
 
 type Translate = ReturnType<typeof useTranslation>["t"];
+type DashboardSnapshot = ReturnType<ReturnType<typeof useAppStore.getState>["getDashboardSnapshot"]>;
+type AppCurrency = ReturnType<typeof useAppStore.getState>["profile"]["currency"];
 
 const RECENT_ACTIVITY_PREVIEW_LIMIT = 3;
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
@@ -54,6 +62,7 @@ export const HomeDashboardScreen = () => {
   const { t } = useTranslation();
   const state = useAppStore();
   const [activityLimit, setActivityLimit] = useState(RECENT_ACTIVITY_PREVIEW_LIMIT);
+  const [safeSpendVisible, setSafeSpendVisible] = useState(false);
   const snapshot = state.getDashboardSnapshot();
   const budgets = selectBudgetUsage(state);
   const upcomingBills = state.getUpcomingBills(30);
@@ -81,6 +90,8 @@ export const HomeDashboardScreen = () => {
   const goalProgress = activeGoal ? Math.round((activeGoal.savedAmountMinor / activeGoal.targetAmountMinor) * 100) : null;
   const profileInitial = state.profile.displayName.trim().charAt(0).toUpperCase() || "M";
   const spendDeltaMinor = snapshot.allocatedSpendMinor - snapshot.committedSpendMinor;
+  const daysLeft = daysRemainingInMonth();
+  const spendPlanProgress = snapshot.allocatedSpendMinor > 0 ? Math.min(100, Math.round((snapshot.committedSpendMinor / snapshot.allocatedSpendMinor) * 100)) : 0;
   const fullRailCardWidth = Math.max(260, width - spacing.lg * 2);
   const insightItems: HomeInsight[] = [
     !snapshot.hasSpendAllocation
@@ -156,7 +167,8 @@ export const HomeDashboardScreen = () => {
   ];
 
   return (
-    <Screen contentStyle={styles.screenContent}>
+    <>
+      <Screen contentStyle={styles.screenContent}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <AppText variant="hero">{t("home.greeting", { name: state.profile.displayName })}</AppText>
@@ -176,48 +188,15 @@ export const HomeDashboardScreen = () => {
         </Pressable>
       </View>
 
-      <Card style={[styles.overviewCard, { borderColor: theme.colors.primarySoft }]}>
-        <View style={styles.overviewHeader}>
-          <View>
-            <AppText variant="label" muted>
-              {t("home.moneyOverview")}
-            </AppText>
-            <AppText variant="title">{t("home.monthlyPlan")}</AppText>
-          </View>
-          <View style={styles.overviewActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("home.setMonthlySpendAllocation")}
-              onPress={() => router.push("/modals/monthly-plan")}
-              style={({ pressed }) => [styles.setPlanButton, { backgroundColor: theme.colors.primarySoft }, pressed ? styles.setPlanButtonPressed : null]}
-            >
-              <Ionicons name="create-outline" size={14} color={theme.colors.primary} />
-              <AppText variant="caption" style={[styles.setPlanText, { color: theme.colors.primary }]}>
-                {t("home.setPlan")}
-              </AppText>
-            </Pressable>
-          </View>
-        </View>
-        <View style={styles.overviewGrid}>
-          <MetricTile label={t("home.monthlySalary")} value={formatMoney(snapshot.incomeMinor, state.profile.currency)} tone="neutral" />
-          <MetricTile label={t("home.canSpend")} value={formatMoney(snapshot.spendRemainingMinor, state.profile.currency)} tone={snapshot.overspendMinor > 0 ? "danger" : "success"} />
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("home.editMonthlySpendAllocation")}
-          onPress={() => router.push("/modals/monthly-plan")}
-          style={({ pressed }) => [styles.planSummary, { backgroundColor: theme.colors.surfaceMuted }, pressed ? styles.planSummaryPressed : null]}
-        >
-          <AppText variant="caption" muted>
-            {t("home.allocation", { amount: formatMoney(snapshot.allocatedSpendMinor, state.profile.currency) })}
-          </AppText>
-          <View style={[styles.planDivider, { backgroundColor: theme.colors.border }]} />
-          <AppText variant="caption" muted>
-            {t("home.plannedSavings", { amount: formatMoney(snapshot.plannedSavingsMinor, state.profile.currency) })}
-          </AppText>
-          <Ionicons name="chevron-forward" size={14} color={theme.colors.subtext} />
-        </Pressable>
-      </Card>
+      <MoneyOverviewCard
+        currency={state.profile.currency}
+        daysLeft={daysLeft}
+        onEditPlan={() => router.push("/modals/monthly-plan")}
+        onOpenSafeSpend={() => setSafeSpendVisible(true)}
+        progress={spendPlanProgress}
+        snapshot={snapshot}
+        t={t}
+      />
 
       <View style={styles.horizontalSection}>
         <ActionSectionHeader title={t("home.upcomingBills")} actionLabel={t("home.seeAll")} onAction={() => router.push("/modals/recurring-bills")} />
@@ -300,23 +279,265 @@ export const HomeDashboardScreen = () => {
           <AppText muted>{t("home.noTransactions")}</AppText>
         )}
       </Card>
-    </Screen>
+      </Screen>
+      <SafeSpendSheet
+        currency={state.profile.currency}
+        daysLeft={daysLeft}
+        onClose={() => setSafeSpendVisible(false)}
+        snapshot={snapshot}
+        visible={safeSpendVisible}
+      />
+    </>
   );
 };
 
-const MetricTile = ({ label, value, tone }: { label: string; value: string; tone: "success" | "neutral" | "danger" }) => {
+const MoneyOverviewCard = ({
+  currency,
+  daysLeft,
+  onEditPlan,
+  onOpenSafeSpend,
+  progress,
+  snapshot,
+  t
+}: {
+  currency: AppCurrency;
+  daysLeft: number;
+  onEditPlan: () => void;
+  onOpenSafeSpend: () => void;
+  progress: number;
+  snapshot: DashboardSnapshot;
+  t: Translate;
+}) => {
   const theme = useAppTheme();
-  const backgroundColor = tone === "success" ? theme.colors.successSoft : tone === "danger" ? theme.colors.dangerSoft : theme.colors.surfaceMuted;
-  const borderColor = tone === "success" ? theme.colors.successBorder : tone === "danger" ? theme.colors.dangerBorder : theme.colors.border;
-  const valueColor = tone === "success" ? theme.colors.success : tone === "danger" ? theme.colors.danger : theme.colors.text;
+  const isOver = snapshot.overspendMinor > 0;
+  const statusAction = isOver ? "error" : snapshot.hasSpendAllocation ? "success" : "info";
+  const statusLabel = isOver ? t("common.over") : snapshot.hasSpendAllocation ? t("common.onTrack") : t("home.badge.plan");
+  const amountColor = isOver ? theme.colors.danger : theme.colors.success;
 
   return (
-    <View style={[styles.metricTile, { backgroundColor, borderColor }]}>
-      <AppText variant="caption" muted>
+    <GluestackCard
+      size="lg"
+      variant="outline"
+      className="gap-5"
+      style={[styles.safeSpendOverviewCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.primaryBorder, shadowColor: theme.colors.shadow }]}
+    >
+      <VStack space="lg">
+        <HStack style={styles.overviewHeader}>
+          <VStack style={styles.overviewTitleBlock}>
+            <AppText variant="label" muted>
+              {t("home.moneyOverview")}
+            </AppText>
+            <AppText variant="title">{t("home.monthlyPlan")}</AppText>
+          </VStack>
+          <GluestackBadge action={statusAction} size="sm" variant="solid" style={styles.overviewBadge}>
+            <BadgeText>{statusLabel}</BadgeText>
+          </GluestackBadge>
+        </HStack>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("home.canSpend")}
+          accessibilityHint={t("home.safeSpend.openHint")}
+          onPress={onOpenSafeSpend}
+          style={({ pressed }) => [
+            styles.safeSpendHero,
+            { backgroundColor: isOver ? theme.colors.dangerSoft : theme.colors.successSoft, borderColor: isOver ? theme.colors.dangerBorder : theme.colors.successBorder },
+            pressed ? styles.safeSpendHeroPressed : null
+          ]}
+        >
+          <HStack style={styles.safeSpendHeroTop}>
+            <VStack style={styles.safeSpendHeroCopy}>
+              <AppText variant="caption" muted>
+                {t("home.canSpend")}
+              </AppText>
+              <AppText style={[styles.safeSpendHeroAmount, { color: amountColor }]} numberOfLines={1} adjustsFontSizeToFit>
+                {formatMoney(snapshot.spendRemainingMinor, currency)}
+              </AppText>
+            </VStack>
+            <View style={[styles.safeSpendInfoIcon, { backgroundColor: theme.colors.surface }]}>
+              <Ionicons name="information-circle-outline" size={20} color={theme.colors.subtext} />
+            </View>
+          </HStack>
+          <AppText variant="caption" style={{ color: amountColor }} numberOfLines={2}>
+            {t("home.safeSpend.dailyLine", { amount: formatMoney(snapshot.safeDailySpendMinor, currency), count: daysLeft })}
+          </AppText>
+        </Pressable>
+
+        <VStack space="sm">
+          <HStack style={styles.progressHeader}>
+            <AppText variant="caption" muted>
+              {t("home.planProgress", {
+                used: formatMoney(snapshot.committedSpendMinor, currency),
+                allocation: formatMoney(snapshot.allocatedSpendMinor, currency)
+              })}
+            </AppText>
+            <AppText variant="caption" style={[styles.progressPercent, { color: isOver ? theme.colors.danger : theme.colors.primary }]}>
+              {progress}%
+            </AppText>
+          </HStack>
+          <Progress value={progress} size="sm" className="overflow-hidden" style={{ backgroundColor: theme.colors.surfaceMuted }}>
+            <ProgressFilledTrack className={isOver ? "bg-error-500" : "bg-success-500"} />
+          </Progress>
+        </VStack>
+
+        <HStack space="md" style={styles.overviewStats}>
+          <OverviewStat label={t("home.monthlySalary")} value={formatMoney(snapshot.incomeMinor, currency)} />
+          <OverviewStat label={t("home.safeSpend.upcomingBills")} value={formatMoney(snapshot.expectedBillsMinor, currency)} />
+          <OverviewStat label={t("home.safeSpend.goalReserve")} value={formatMoney(snapshot.savingsReserveMinor, currency)} />
+        </HStack>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("home.editMonthlySpendAllocation")}
+          onPress={onEditPlan}
+          style={({ pressed }) => [styles.planSummary, { backgroundColor: theme.colors.surfaceMuted }, pressed ? styles.planSummaryPressed : null]}
+        >
+          <Ionicons name="create-outline" size={14} color={theme.colors.primary} />
+          <AppText variant="caption" style={[styles.setPlanText, { color: theme.colors.primary }]}>
+            {t("home.setPlan")}
+          </AppText>
+          <View style={[styles.planDivider, { backgroundColor: theme.colors.border }]} />
+          <AppText variant="caption" muted numberOfLines={1} style={styles.planSummaryText}>
+            {t("home.allocation", { amount: formatMoney(snapshot.allocatedSpendMinor, currency) })}
+          </AppText>
+          <Ionicons name="chevron-forward" size={14} color={theme.colors.subtext} />
+        </Pressable>
+      </VStack>
+    </GluestackCard>
+  );
+};
+
+const OverviewStat = ({ label, value }: { label: string; value: string }) => {
+  const theme = useAppTheme();
+
+  return (
+    <VStack space="xs" style={[styles.overviewStat, { backgroundColor: theme.colors.surfaceMuted, borderColor: theme.colors.border }]}>
+      <AppText variant="caption" muted numberOfLines={1}>
         {label}
       </AppText>
-      <AppText style={[styles.metricValue, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>
+      <AppText style={[styles.overviewStatValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
+      </AppText>
+    </VStack>
+  );
+};
+
+const SafeSpendSheet = ({
+  currency,
+  daysLeft,
+  onClose,
+  snapshot,
+  visible
+}: {
+  currency: AppCurrency;
+  daysLeft: number;
+  onClose: () => void;
+  snapshot: DashboardSnapshot;
+  visible: boolean;
+}) => {
+  const theme = useAppTheme();
+  const { t } = useTranslation();
+
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.sheetBackdrop}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("common.closeAction")}
+          onPress={onClose}
+          style={styles.sheetBackdropPressable}
+        />
+        <View style={[styles.safeSpendSheet, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetTitleBlock}>
+              <AppText variant="title">{t("home.safeSpend.title")}</AppText>
+              <AppText muted>{t("home.safeSpend.subtitle")}</AppText>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("common.closeAction")}
+              hitSlop={8}
+              onPress={onClose}
+              style={({ pressed }) => [styles.sheetCloseButton, { backgroundColor: theme.colors.surfaceMuted }, pressed ? styles.sheetClosePressed : null]}
+            >
+              <Ionicons name="close" size={20} color={theme.colors.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.breakdownGroup}>
+            <BreakdownRow label={t("home.safeSpend.income")} value={snapshot.incomeMinor} currency={currency} />
+            <BreakdownRow label={t("home.safeSpend.plannedSavings")} value={snapshot.plannedSavingsMinor} currency={currency} sign="minus" />
+            <BreakdownRow emphasized label={t("home.safeSpend.spendAllocation")} value={snapshot.allocatedSpendMinor} currency={currency} />
+          </View>
+
+          <View style={styles.breakdownGroup}>
+            <BreakdownRow label={t("home.safeSpend.spent")} value={snapshot.expenseMinor} currency={currency} sign="minus" />
+            <BreakdownRow label={t("home.safeSpend.upcomingBills")} value={snapshot.expectedBillsMinor} currency={currency} sign="minus" />
+            <BreakdownRow emphasized label={t("home.safeSpend.canSpend")} value={snapshot.spendRemainingMinor} currency={currency} tone={snapshot.overspendMinor > 0 ? "danger" : "success"} />
+          </View>
+
+          <View style={[styles.dailySafeBox, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primaryBorder }]}>
+            <View>
+              <AppText variant="caption" muted>
+                {t("home.safeSpend.safeDaily")}
+              </AppText>
+              <AppText style={[styles.dailySafeAmount, { color: theme.colors.primary }]}>{formatMoney(snapshot.safeDailySpendMinor, currency)}</AppText>
+            </View>
+            <View style={styles.dailySafeMeta}>
+              <AppText variant="caption" muted>
+                {t("home.safeSpend.goalReserve")}
+              </AppText>
+              <AppText variant="caption" style={{ color: theme.colors.text }}>
+                {formatMoney(snapshot.savingsReserveMinor, currency)}
+              </AppText>
+              <AppText variant="caption" muted>
+                {t("home.safeSpend.daysLeft", { count: daysLeft })}
+              </AppText>
+            </View>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("home.safeSpend.done")}
+            onPress={onClose}
+            style={({ pressed }) => [styles.sheetDoneButton, { backgroundColor: theme.colors.primary }, pressed ? styles.sheetDonePressed : null]}
+          >
+            <AppText style={[styles.sheetDoneText, { color: theme.colors.onPrimary }]}>{t("home.safeSpend.done")}</AppText>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const BreakdownRow = ({
+  currency,
+  emphasized,
+  label,
+  sign,
+  tone,
+  value
+}: {
+  currency: AppCurrency;
+  emphasized?: boolean;
+  label: string;
+  sign?: "minus";
+  tone?: "success" | "danger";
+  value: number;
+}) => {
+  const theme = useAppTheme();
+  const valueColor = tone === "success" ? theme.colors.success : tone === "danger" ? theme.colors.danger : theme.colors.text;
+  const prefix = sign === "minus" && value > 0 ? "-" : "";
+
+  return (
+    <View style={[styles.breakdownRow, emphasized ? [styles.breakdownRowEmphasis, { borderTopColor: theme.colors.border }] : null]}>
+      <AppText variant={emphasized ? "body" : "caption"} muted={!emphasized}>
+        {label}
+      </AppText>
+      <AppText variant={emphasized ? "body" : "caption"} style={[styles.breakdownValue, { color: valueColor }]}>
+        {prefix}
+        {formatMoney(value, currency)}
       </AppText>
     </View>
   );
@@ -463,6 +684,86 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: "900"
   },
+  safeSpendOverviewCard: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: spacing.lg,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.12,
+    shadowRadius: 34,
+    elevation: 3
+  },
+  overviewTitleBlock: {
+    flex: 1,
+    minWidth: 0
+  },
+  overviewBadge: {
+    borderRadius: 999,
+    minHeight: 28,
+    paddingHorizontal: spacing.sm
+  },
+  safeSpendHero: {
+    minHeight: 138,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: spacing.lg,
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  safeSpendHeroPressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.99 }]
+  },
+  safeSpendHeroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  safeSpendHeroCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  safeSpendHeroAmount: {
+    fontSize: 38,
+    lineHeight: 46,
+    fontWeight: "900",
+    letterSpacing: 0
+  },
+  safeSpendInfoIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  progressPercent: {
+    fontWeight: "900"
+  },
+  overviewStats: {
+    flexDirection: "row",
+    alignItems: "stretch"
+  },
+  overviewStat: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 72,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: spacing.md,
+    justifyContent: "space-between"
+  },
+  overviewStatValue: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "900"
+  },
   overviewCard: {
     gap: spacing.md,
     borderColor: "rgba(13, 89, 217, 0.14)"
@@ -508,6 +809,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(15, 23, 42, 0.06)"
   },
+  metricTilePressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.99 }]
+  },
+  metricTopLine: {
+    minHeight: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm
+  },
   metricTileSuccess: {
     backgroundColor: "#ECFDF5",
     borderColor: "rgba(16, 185, 129, 0.14)"
@@ -534,9 +846,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     gap: spacing.sm,
     backgroundColor: "#F8FAFC"
+  },
+  planSummaryText: {
+    flex: 1,
+    minWidth: 0
   },
   planSummaryPressed: {
     opacity: 0.78,
@@ -717,6 +1033,105 @@ const styles = StyleSheet.create({
     flexShrink: 1
   },
   insightMeta: {
+    fontWeight: "900"
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.54)"
+  },
+  sheetBackdropPressable: {
+    ...StyleSheet.absoluteFillObject
+  },
+  safeSpendSheet: {
+    maxHeight: "88%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: spacing.md
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(148, 163, 184, 0.42)"
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  sheetTitleBlock: {
+    flex: 1,
+    gap: spacing.xs
+  },
+  sheetCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  sheetClosePressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.98 }]
+  },
+  breakdownGroup: {
+    gap: spacing.sm
+  },
+  breakdownRow: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  breakdownRowEmphasis: {
+    borderTopWidth: 1,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs
+  },
+  breakdownValue: {
+    flexShrink: 0,
+    fontWeight: "900",
+    textAlign: "right"
+  },
+  dailySafeBox: {
+    minHeight: 92,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  dailySafeAmount: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "900"
+  },
+  dailySafeMeta: {
+    flex: 1,
+    alignItems: "flex-end",
+    gap: 2
+  },
+  sheetDoneButton: {
+    minHeight: 46,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md
+  },
+  sheetDonePressed: {
+    opacity: 0.84,
+    transform: [{ scale: 0.99 }]
+  },
+  sheetDoneText: {
     fontWeight: "900"
   }
 });

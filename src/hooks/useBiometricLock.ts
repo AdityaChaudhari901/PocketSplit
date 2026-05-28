@@ -3,7 +3,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 
 import { secureStorage } from "@/services/secure-storage.service";
 
-const BIOMETRIC_LOCK_KEY = "moneypulse.biometric.enabled";
+const BIOMETRIC_LOCK_KEY = "pocketsplit.biometric.enabled";
 
 export const useBiometricLock = () => {
   const [isChecking, setIsChecking] = useState(false);
@@ -26,7 +26,7 @@ export const useBiometricLock = () => {
       }
 
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Unlock MoneyPulse AI",
+        promptMessage: "Unlock PocketSplit",
         cancelLabel: "Cancel",
         disableDeviceFallback: false
       });

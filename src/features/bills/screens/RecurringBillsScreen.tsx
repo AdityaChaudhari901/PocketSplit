@@ -97,7 +97,7 @@ export const RecurringBillsScreen = () => {
         <EmptyState
           icon="calendar"
           title="No recurring bills yet"
-          body="Add your rent, EMIs, and subscriptions to make MoneyPulse forecast your real spendable amount."
+          body="Add your rent, EMIs, and subscriptions to make PocketSplit forecast your real spendable amount."
           actionLabel="Add recurring bill"
           onAction={() => router.push("/modals/recurring-bill-form")}
         />

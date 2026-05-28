@@ -1,6 +1,6 @@
 import type { Category, CurrencyCode, Wallet, WalletType } from "@/types/domain";
 
-export const APP_NAME = "MoneyPulse AI";
+export const APP_NAME = "PocketSplit";
 export const DEFAULT_CURRENCY: CurrencyCode = "INR";
 export const DEMO_USER_ID = "demo-user";
 export const PRIMARY_WALLET_ID = "wallet-primary";

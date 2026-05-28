@@ -11,6 +11,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "tailwind.config": [
+        "./tailwind.config.js"
       ]
     },
     "types": [
@@ -21,6 +24,7 @@
     "src",
     "app.json",
     "babel.config.js",
+    "nativewind-env.d.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],

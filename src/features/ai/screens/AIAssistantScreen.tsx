@@ -246,7 +246,7 @@ export const AIAssistantScreen = () => {
           {!canAsk ? (
             <View style={[styles.lockedBanner, { backgroundColor: theme.colors.warningSoft, borderColor: theme.colors.warningBorder }]}>
               <Ionicons name="lock-closed" size={13} color={theme.colors.warning} />
-              <AppText style={[styles.lockedText, { color: theme.colors.warning }]}>Upgrade to Pro or Premium to chat with MoneyPulse AI.</AppText>
+              <AppText style={[styles.lockedText, { color: theme.colors.warning }]}>Upgrade to Pro or Premium to chat with PocketSplit AI.</AppText>
             </View>
           ) : null}
 
@@ -254,7 +254,7 @@ export const AIAssistantScreen = () => {
             <TextInput
               value={question}
               onChangeText={setQuestion}
-              placeholder="Message MoneyPulse"
+              placeholder="Message PocketSplit"
               placeholderTextColor={theme.colors.subtext}
               multiline
               maxLength={280}

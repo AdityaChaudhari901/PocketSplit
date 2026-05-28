@@ -91,7 +91,7 @@ export const ReportsScreen = () => {
         <View>
           <AppText variant="subtitle">Savings goals report</AppText>
           <AppText muted>
-            {activeSavingsGoals.length} active goals reserve {formatMoney(savingsReserveMinor, state.profile.currency)} before MoneyPulse calculates daily spend.
+            {activeSavingsGoals.length} active goals reserve {formatMoney(savingsReserveMinor, state.profile.currency)} before PocketSplit calculates daily spend.
           </AppText>
         </View>
       </Card>
