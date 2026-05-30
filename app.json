@@ -13,12 +13,13 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "PocketSplit uses Face ID to protect access to your financial data.",
         "NSCameraUsageDescription": "PocketSplit uses the camera to scan receipt images.",
-        "NSPhotoLibraryUsageDescription": "PocketSplit needs photo access so you can upload receipt images and payment proofs."
+        "NSPhotoLibraryUsageDescription": "PocketSplit needs photo access so you can upload receipt images and payment proofs.",
+        "NSContactsUsageDescription": "PocketSplit uses contacts only to help you add people to split groups."
       }
     },
     "android": {
       "package": "com.pocketsplit.app",
-      "permissions": ["CAMERA", "USE_BIOMETRIC", "POST_NOTIFICATIONS"]
+      "permissions": ["CAMERA", "USE_BIOMETRIC", "POST_NOTIFICATIONS", "READ_CONTACTS"]
     },
     "plugins": [
       "expo-router",

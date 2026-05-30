@@ -14,6 +14,7 @@ interface FilterChipsProps {
   tags: Tag[];
   currency: CurrencyCode;
   onRemove: (key: keyof SearchParams, value?: string) => void;
+  showQueryChip?: boolean;
 }
 
 interface ChipItem {
@@ -50,12 +51,12 @@ const amountLabel = (params: SearchParams, currency: CurrencyCode): string | nul
   return `Up to ${formatMoney(max ?? 0, currency)}`;
 };
 
-export const FilterChips = memo(({ params, categories, tags, currency, onRemove }: FilterChipsProps) => {
+export const FilterChips = memo(({ params, categories, tags, currency, onRemove, showQueryChip = true }: FilterChipsProps) => {
   const theme = useAppTheme();
   const chips = useMemo<ChipItem[]>(() => {
     const items: ChipItem[] = [];
     const trimmedQuery = params.query?.trim();
-    if (trimmedQuery) {
+    if (showQueryChip && trimmedQuery) {
       items.push({ id: "query", label: `Search: ${trimmedQuery}`, onPress: () => onRemove("query") });
     }
     if (params.fromDate || params.toDate) {
@@ -91,7 +92,7 @@ export const FilterChips = memo(({ params, categories, tags, currency, onRemove 
       items.push({ id: "member", label: "Member filter", onPress: () => onRemove("memberId") });
     }
     return items;
-  }, [categories, currency, onRemove, params, tags]);
+  }, [categories, currency, onRemove, params, showQueryChip, tags]);
 
   if (countActiveSearchFilters(params) === 0 || chips.length === 0) {
     return null;

@@ -7,8 +7,8 @@ export const createGroupSchema = z.object({
   description: z.string().max(180).optional(),
   type: z.enum(["trip", "roommates", "couple", "family", "office", "event", "business", "other"]),
   currency: z.string().length(3).refine(isSupportedCurrencyCode, "Choose a supported currency."),
-  budgetMajor: z.string().regex(/^\d+(\.\d{1,3})?$/, "Use a valid budget.").optional(),
-  membersCsv: z.string().min(2, "Add at least one member.")
+  budgetMajor: z.union([z.string().regex(/^\d+(\.\d{1,3})?$/, "Use a valid budget."), z.literal("")]).optional(),
+  membersCsv: z.string().optional()
 });
 
 export const splitExpenseSchema = z.object({

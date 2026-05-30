@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateExpenseShares, calculateGroupBalances, simplifySettlements, validateSplit } from "@/lib/split";
+import { createSplitExpense } from "@/services/split.service";
 import type { GroupExpense, SplitMember } from "@/types/domain";
 
 const members: SplitMember[] = [
@@ -33,6 +34,53 @@ describe("split utilities", () => {
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain("Percentages must total 100%.");
+  });
+
+  it("creates exact split expenses from member drafts", () => {
+    const expense = createSplitExpense({
+      groupId: "group",
+      title: "Dinner",
+      amountMinor: 600000,
+      currency: "INR",
+      paidByMemberId: "rahul",
+      splitMethod: "exact",
+      members,
+      createdBy: "rahul",
+      drafts: [
+        { memberId: "rahul", amountMinor: 300000 },
+        { memberId: "amit", amountMinor: 200000 },
+        { memberId: "priya", amountMinor: 100000 },
+        { memberId: "neha", excluded: true }
+      ]
+    });
+
+    expect(expense.splits).toEqual([
+      { memberId: "rahul", amountMinor: 300000 },
+      { memberId: "amit", amountMinor: 200000 },
+      { memberId: "priya", amountMinor: 100000 }
+    ]);
+  });
+
+  it("creates percentage split expenses when percentages total 100 percent", () => {
+    const expense = createSplitExpense({
+      groupId: "group",
+      title: "Stay",
+      amountMinor: 100000,
+      currency: "INR",
+      paidByMemberId: "rahul",
+      splitMethod: "percentage",
+      members: members.slice(0, 2),
+      createdBy: "rahul",
+      drafts: [
+        { memberId: "rahul", percentageBps: 7500 },
+        { memberId: "amit", percentageBps: 2500 }
+      ]
+    });
+
+    expect(expense.splits).toEqual([
+      { memberId: "rahul", percentageBps: 7500, amountMinor: 75000 },
+      { memberId: "amit", percentageBps: 2500, amountMinor: 25000 }
+    ]);
   });
 
   it("calculates group balances for a payer and participants", () => {

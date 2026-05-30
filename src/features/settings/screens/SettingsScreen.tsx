@@ -1,21 +1,17 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "expo-router";
 import { Alert, Pressable, StyleSheet, Switch, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { Badge, BadgeText } from "@/components/gluestack/badge";
-import { Card as GluestackCard } from "@/components/gluestack/card";
-import { HStack } from "@/components/gluestack/hstack";
-import { VStack } from "@/components/gluestack/vstack";
 import { AppText } from "@/components/ui/AppText";
 import { Button } from "@/components/ui/Button";
 import { Screen } from "@/components/ui/Screen";
 import { getCurrencyOption } from "@/lib/currencies";
 import { useTranslation } from "@/lib/i18n";
 import { getAppLanguageDisplayName } from "@/lib/languages";
-import { normalizePlanId } from "@/services/entitlement.service";
-import { radius, spacing, useAppTheme } from "@/lib/theme";
+import { spacing, useAppTheme } from "@/lib/theme";
 import { signOut } from "@/services/auth.service";
+import { normalizePlanId } from "@/services/entitlement.service";
 import { getNotificationRuntimeLimitation, scheduleBudgetReminder } from "@/services/notification.service";
 import { useAppStore } from "@/store/app.store";
 import type { PlanId } from "@/types/domain";
@@ -28,6 +24,7 @@ interface SettingsRowProps {
   value?: string;
   icon: keyof typeof Ionicons.glyphMap;
   tone?: RowTone;
+  valueTone?: RowTone;
   onPress?: () => void;
 }
 
@@ -101,6 +98,19 @@ export const SettingsScreen = () => {
     );
   };
 
+  const showProfileInfo = (label: string, value: string) => {
+    Alert.alert(label, value || t("settings.notSet"));
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/(tabs)");
+  };
+
   return (
     <Screen contentStyle={styles.screenContent}>
       <View style={styles.header}>
@@ -108,14 +118,12 @@ export const SettingsScreen = () => {
           accessibilityRole="button"
           accessibilityLabel={t("common.goBack")}
           hitSlop={8}
-          onPress={() => router.back()}
-          style={({ pressed }) => [
-            styles.backButton,
-            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-            pressed ? styles.pressed : null
-          ]}
+          onPress={handleBack}
+          style={({ pressed }) => (pressed ? styles.pressed : null)}
         >
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          <View style={[styles.backButton, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}>
+            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+          </View>
         </Pressable>
         <AppText variant="subtitle" style={styles.headerTitle}>
           {t("settings.title")}
@@ -123,16 +131,19 @@ export const SettingsScreen = () => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <AccountSummaryCard
-        displayName={profile.displayName || t("settings.userFallback")}
-        email={profile.email || t("settings.notSet")}
-        initial={profileInitial(profile.displayName)}
-        isPaidPlan={isPaidPlan}
-        planName={planLabel(resolvedPlan, t)}
-        statusLabel={isPaidPlan ? t("common.active") : t("settings.plan.free")}
-      />
-
-      <GluestackCard size="md" variant="outline" className="p-0 overflow-hidden" style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <SettingsGroup>
+        <SettingsRow
+          icon="mail-outline"
+          title={t("settings.email")}
+          subtitle={profile.email || t("settings.notSet")}
+          onPress={() => showProfileInfo(t("settings.email"), profile.email)}
+        />
+        <SettingsRow
+          icon="person-outline"
+          title={t("settings.username")}
+          subtitle={profile.displayName || t("settings.userFallback")}
+          onPress={() => showProfileInfo(t("settings.username"), profile.displayName)}
+        />
         <SettingsRow icon="cash-outline" title={t("settings.currency")} value={`${profile.currency} - ${currencyName}`} onPress={() => router.push("/modals/currency")} />
         <SettingsRow icon="language-outline" title={t("settings.language")} value={languageName} onPress={() => router.push("/modals/language")} />
         <SettingsSwitchRow
@@ -143,7 +154,7 @@ export const SettingsScreen = () => {
           onValueChange={(enabled) => setThemeMode(enabled ? "dark" : "light")}
         />
         <SettingsRow icon="shield-checkmark-outline" title={t("settings.privacy")} onPress={() => router.push("/modals/privacy-security")} />
-      </GluestackCard>
+      </SettingsGroup>
 
       <PlanStatusCard
         activeLabel={t("common.active")}
@@ -154,83 +165,40 @@ export const SettingsScreen = () => {
         title={t("settings.premiumStatus")}
       />
 
-      <GluestackCard size="md" variant="outline" className="p-0 overflow-hidden" style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <SettingsRow icon="repeat-outline" title={t("settings.recurringBills")} subtitle={t("settings.recurringBills.subtitle")} onPress={() => router.push("/modals/recurring-bills")} />
-        <SettingsRow icon="flag-outline" title={t("settings.savingsGoals")} subtitle={t("settings.savingsGoals.subtitle")} onPress={() => router.push("/modals/savings-goals")} />
-        <SettingsRow icon="pricetags-outline" title={t("settings.categories")} subtitle={t("settings.categories.subtitle")} onPress={() => router.push("/modals/categories")} />
-        <SettingsRow icon="bookmark-outline" title="Tags" subtitle="Reusable filters for expenses" onPress={() => router.push("/(tabs)/tags")} />
-      </GluestackCard>
+      <SettingsGroup>
+        <SettingsRow icon="pricetags-outline" title={t("settings.categories")} onPress={() => router.push("/modals/categories")} />
+        <SettingsRow icon="bookmark-outline" title={t("settings.tags")} onPress={() => router.push("/(tabs)/tags")} />
+        <SettingsRow icon="download-outline" title={t("settings.dataExport")} onPress={() => router.push("/modals/data-export")} />
+      </SettingsGroup>
 
-      <GluestackCard size="md" variant="outline" className="p-0 overflow-hidden" style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <SettingsRow icon="notifications-outline" title={t("settings.dailyBudgetReminder")} subtitle={t("settings.dailyBudgetReminder.subtitle")} tone="primary" onPress={enableReminder} />
-        <SettingsRow icon="download-outline" title={t("settings.dataExport")} subtitle={t("settings.dataExport.subtitle")} onPress={() => router.push("/modals/data-export")} />
+      <SettingsGroup>
+        <SettingsRow icon="repeat-outline" title={t("settings.recurringBills")} onPress={() => router.push("/modals/recurring-bills")} />
+        <SettingsRow icon="flag-outline" title={t("settings.savingsGoals")} onPress={() => router.push("/modals/savings-goals")} />
+        <SettingsRow icon="notifications-outline" title={t("settings.dailyBudgetReminder")} tone="primary" onPress={enableReminder} />
         <SettingsRow icon="trash-outline" title={t("settings.deleteAccount")} tone="danger" onPress={() => router.push("/modals/delete-account")} />
-      </GluestackCard>
+      </SettingsGroup>
 
-      <GluestackCard size="md" variant="outline" className="gap-4" style={[styles.sessionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-        <VStack space="xs">
+      <View style={[styles.sessionCard, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}>
+        <View style={styles.sessionCopy}>
           <AppText variant="caption" muted>
             {t("settings.currentPlan")}
           </AppText>
-          <AppText variant="subtitle">{planLabel(resolvedPlan, t)}</AppText>
-        </VStack>
+          <AppText variant="body" numberOfLines={1}>
+            {planLabel(resolvedPlan, t)}
+          </AppText>
+        </View>
         <Button variant="danger" icon="log-out-outline" loading={signingOut} onPress={handleSignOut}>
           {t("settings.signOut")}
         </Button>
-      </GluestackCard>
+      </View>
     </Screen>
   );
 };
 
-const profileInitial = (displayName: string): string => displayName.trim().charAt(0).toUpperCase() || "M";
-
-const AccountSummaryCard = ({
-  displayName,
-  email,
-  initial,
-  isPaidPlan,
-  planName,
-  statusLabel
-}: {
-  displayName: string;
-  email: string;
-  initial: string;
-  isPaidPlan: boolean;
-  planName: string;
-  statusLabel: string;
-}) => {
+const SettingsGroup = ({ children }: { children: ReactNode }) => {
   const theme = useAppTheme();
 
-  return (
-    <GluestackCard
-      size="lg"
-      variant="outline"
-      className="gap-4"
-      style={[styles.accountCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.primaryBorder, shadowColor: theme.colors.shadow }]}
-    >
-      <HStack style={styles.accountRow}>
-        <View style={[styles.accountAvatar, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primaryBorder }]}>
-          <AppText style={[styles.accountAvatarText, { color: theme.colors.primary }]}>{initial}</AppText>
-        </View>
-        <VStack style={styles.accountCopy} space="xs">
-          <AppText variant="title" numberOfLines={1}>
-            {displayName}
-          </AppText>
-          <AppText variant="caption" muted numberOfLines={1}>
-            {email}
-          </AppText>
-        </VStack>
-      </HStack>
-      <HStack style={styles.accountMetaRow}>
-        <Badge action={isPaidPlan ? "success" : "muted"} size="sm" variant="solid" style={styles.metaBadge}>
-          <BadgeText>{planName}</BadgeText>
-        </Badge>
-        <Badge action={isPaidPlan ? "success" : "warning"} size="sm" variant="solid" style={styles.metaBadge}>
-          <BadgeText>{statusLabel}</BadgeText>
-        </Badge>
-      </HStack>
-    </GluestackCard>
-  );
+  return <View style={[styles.group, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}>{children}</View>;
 };
 
 const PlanStatusCard = ({
@@ -252,36 +220,36 @@ const PlanStatusCard = ({
   const statusColor = isPaidPlan ? theme.colors.success : theme.colors.warning;
 
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => (pressed ? styles.pressed : null)}>
-      <GluestackCard
-        size="md"
-        variant="outline"
-        style={[styles.subscriptionCard, { backgroundColor: theme.colors.surface, borderColor: isPaidPlan ? theme.colors.successBorder : theme.colors.warningBorder }]}
-      >
-        <HStack style={styles.subscriptionRow}>
-          <View style={[styles.tinyIcon, { backgroundColor: isPaidPlan ? theme.colors.successSoft : theme.colors.warningSoft }]}>
-            <Ionicons name="diamond" size={16} color={statusColor} />
-          </View>
-          <VStack style={styles.subscriptionCopy} space="xs">
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${planName}`}
+      onPress={onPress}
+      style={({ pressed }) => (pressed ? styles.pressed : null)}
+    >
+      <View style={[styles.subscriptionCard, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}>
+        <View style={styles.subscriptionLeft}>
+          <Ionicons name="diamond" size={18} color={theme.colors.primary} />
+          <View style={styles.subscriptionCopy}>
             <AppText variant="body">{title}</AppText>
             <AppText variant="caption" muted numberOfLines={1}>
               {planName}
             </AppText>
-          </VStack>
-          <HStack style={styles.subscriptionRight}>
-            <AppText variant="body" style={{ color: statusColor }}>
-              {isPaidPlan ? activeLabel : inactiveLabel}
-            </AppText>
-            <Ionicons name="chevron-forward" size={20} color={statusColor} />
-          </HStack>
-        </HStack>
-      </GluestackCard>
+          </View>
+        </View>
+        <View style={styles.subscriptionRight}>
+          <AppText variant="body" style={{ color: statusColor }}>
+            {isPaidPlan ? activeLabel : inactiveLabel}
+          </AppText>
+          <Ionicons name="chevron-forward" size={20} color={statusColor} />
+        </View>
+      </View>
     </Pressable>
   );
 };
 
-const SettingsRow = ({ title, subtitle, value, icon, tone = "default", onPress }: SettingsRowProps) => {
+const SettingsRow = ({ title, subtitle, value, icon, tone = "default", valueTone = "default", onPress }: SettingsRowProps) => {
   const theme = useAppTheme();
+  const hasSubtitle = Boolean(subtitle);
   const iconColor =
     tone === "primary"
       ? theme.colors.primary
@@ -292,23 +260,23 @@ const SettingsRow = ({ title, subtitle, value, icon, tone = "default", onPress }
           : tone === "danger"
             ? theme.colors.danger
             : theme.colors.text;
-  const iconBackground =
-    tone === "primary"
-      ? theme.colors.primarySoft
-      : tone === "success"
-        ? theme.colors.successSoft
-        : tone === "warning"
-          ? theme.colors.warningSoft
-          : tone === "danger"
-            ? theme.colors.dangerSoft
-            : theme.colors.surfaceMuted;
+  const valueColor =
+    valueTone === "primary"
+      ? theme.colors.primary
+      : valueTone === "success"
+        ? theme.colors.success
+        : valueTone === "warning"
+          ? theme.colors.warning
+          : valueTone === "danger"
+            ? theme.colors.danger
+            : theme.colors.subtext;
 
   const rowContent = (
-    <HStack style={styles.rowInner}>
-      <View style={[styles.rowIcon, { backgroundColor: iconBackground }]}>
-        <Ionicons name={icon} size={18} color={iconColor} />
+    <View style={styles.rowInner}>
+      <View style={styles.rowIcon}>
+        <Ionicons name={icon} size={19} color={iconColor} />
       </View>
-      <VStack style={styles.rowCopy} space="xs">
+      <View style={styles.rowCopy}>
         <AppText variant="body" style={tone === "danger" ? { color: theme.colors.danger } : undefined}>
           {title}
         </AppText>
@@ -317,22 +285,22 @@ const SettingsRow = ({ title, subtitle, value, icon, tone = "default", onPress }
             {subtitle}
           </AppText>
         ) : null}
-      </VStack>
+      </View>
       {value ? (
-        <AppText variant="caption" muted numberOfLines={1} style={styles.rowValue}>
+        <AppText variant="caption" numberOfLines={1} style={[styles.rowValue, { color: valueColor }]}>
           {value}
         </AppText>
       ) : null}
-      {onPress ? <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} /> : null}
-    </HStack>
+      {onPress ? <Ionicons name="chevron-forward" size={20} color={theme.colors.text} /> : null}
+    </View>
   );
 
   if (!onPress) {
-    return <View style={styles.row}>{rowContent}</View>;
+    return <View style={[styles.row, hasSubtitle ? styles.rowWithSubtitle : null]}>{rowContent}</View>;
   }
 
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, hasSubtitle ? styles.rowWithSubtitle : null, pressed ? styles.pressed : null]}>
       {rowContent}
     </Pressable>
   );
@@ -342,36 +310,45 @@ const SettingsSwitchRow = ({ title, subtitle, icon, value, onValueChange }: Sett
   const theme = useAppTheme();
 
   return (
-    <HStack style={styles.row}>
-      <View style={[styles.rowIcon, { backgroundColor: value ? theme.colors.primarySoft : theme.colors.surfaceMuted }]}>
-        <Ionicons name={icon} size={18} color={value ? theme.colors.primary : theme.colors.text} />
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={title}
+      accessibilityState={{ checked: value }}
+      onPress={() => onValueChange(!value)}
+      style={({ pressed }) => [styles.row, styles.rowWithSubtitle, pressed ? styles.pressed : null]}
+    >
+      <View style={styles.rowInner}>
+        <View style={styles.rowIcon}>
+          <Ionicons name={icon} size={19} color={value ? theme.colors.primary : theme.colors.text} />
+        </View>
+        <View style={styles.rowCopy}>
+          <AppText variant="body">{title}</AppText>
+          {subtitle ? (
+            <AppText variant="caption" muted numberOfLines={1}>
+              {subtitle}
+            </AppText>
+          ) : null}
+        </View>
+        <Switch
+          accessibilityLabel={title}
+          value={value}
+          onValueChange={onValueChange}
+          trackColor={{ false: theme.colors.surfaceMuted, true: theme.colors.primarySoft }}
+          thumbColor={value ? theme.colors.primary : theme.colors.subtext}
+        />
       </View>
-      <VStack style={styles.rowCopy} space="xs">
-        <AppText variant="body">{title}</AppText>
-        {subtitle ? (
-          <AppText variant="caption" muted numberOfLines={1}>
-            {subtitle}
-          </AppText>
-        ) : null}
-      </VStack>
-      <Switch
-        accessibilityLabel={title}
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: theme.colors.surfaceMuted, true: theme.colors.primarySoft }}
-        thumbColor={value ? theme.colors.primary : theme.colors.subtext}
-      />
-    </HStack>
+    </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
   screenContent: {
-    paddingTop: spacing.sm,
-    gap: spacing.xl
+    paddingTop: spacing.md,
+    paddingBottom: 120,
+    gap: 20
   },
   header: {
-    minHeight: 56,
+    minHeight: 68,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between"
@@ -379,130 +356,114 @@ const styles = StyleSheet.create({
   backButton: {
     width: 56,
     height: 56,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    borderRadius: 18,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 2
   },
   headerTitle: {
     flex: 1,
-    textAlign: "center"
+    textAlign: "center",
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800"
   },
   headerSpacer: {
     width: 56,
     height: 56
   },
   group: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 0,
-    overflow: "hidden"
+    borderRadius: 26,
+    paddingVertical: 6,
+    overflow: "hidden",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.07,
+    shadowRadius: 30,
+    elevation: 2
   },
   row: {
-    minHeight: 64,
+    width: "100%",
+    minHeight: 62,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    gap: spacing.md
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    gap: 14
+  },
+  rowWithSubtitle: {
+    minHeight: 74
   },
   rowInner: {
+    width: "100%",
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14
+  },
+  rowIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  rowCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2
+  },
+  rowValue: {
+    maxWidth: 184,
+    textAlign: "right"
+  },
+  pressed: {
+    opacity: 0.72
+  },
+  subscriptionCard: {
+    width: "100%",
+    minHeight: 82,
+    borderRadius: 24,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.07,
+    shadowRadius: 30,
+    elevation: 2
+  },
+  subscriptionLeft: {
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md
   },
-  rowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  rowCopy: {
-    flex: 1,
-    minWidth: 0
-  },
-  rowValue: {
-    maxWidth: 150,
-    textAlign: "right"
-  },
-  pressed: {
-    opacity: 0.72
-  },
-  accountCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: spacing.lg,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.1,
-    shadowRadius: 28,
-    elevation: 2
-  },
-  accountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md
-  },
-  accountAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  accountAvatarText: {
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: "900"
-  },
-  accountCopy: {
-    flex: 1,
-    minWidth: 0
-  },
-  accountMetaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm
-  },
-  metaBadge: {
-    borderRadius: 999,
-    minHeight: 28,
-    paddingHorizontal: spacing.sm
-  },
-  subscriptionCard: {
-    minHeight: 86,
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: spacing.lg
-  },
-  subscriptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.md
-  },
   subscriptionCopy: {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
+    gap: 2
   },
   subscriptionRight: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs
   },
-  tinyIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center"
-  },
   sessionCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: spacing.lg
+    borderRadius: 26,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.07,
+    shadowRadius: 30,
+    elevation: 2
+  },
+  sessionCopy: {
+    gap: spacing.xs
   }
 });

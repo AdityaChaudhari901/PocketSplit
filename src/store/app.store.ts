@@ -37,6 +37,7 @@ import type {
   SavingsGoalContribution,
   SavingsGoalStatus,
   Settlement,
+  SplitMember,
   SplitGroup,
   Tag,
   Transaction,
@@ -137,6 +138,7 @@ export interface AppState {
   updateSavingsGoalStatus: (goalId: string, status: SavingsGoalStatus) => void;
   addReceipt: (receipt: Receipt) => void;
   addGroup: (group: SplitGroup) => void;
+  addGroupMembers: (groupId: string, members: SplitMember[]) => void;
   addGroupExpense: (expense: GroupExpense) => void;
   addSettlement: (settlement: Settlement) => void;
   consumeFeatureUsage: (featureName: FeatureName) => void;
@@ -624,6 +626,58 @@ export const useAppStore = create<AppState>()(
           groups: [group, ...state.groups],
           entitlement: consumeUsage(state.entitlement, "split_group")
         })),
+      addGroupMembers: (groupId, members) =>
+        set((state) => {
+          const group = state.groups.find((item) => item.id === groupId);
+          if (!group || members.length === 0) {
+            return {};
+          }
+
+          const existingKeys = new Set(
+            group.members.map((member) => `${member.displayName.trim().toLowerCase()}-${member.email?.trim().toLowerCase() ?? ""}`)
+          );
+          const uniqueMembers = members.filter((member) => {
+            const key = `${member.displayName.trim().toLowerCase()}-${member.email?.trim().toLowerCase() ?? ""}`;
+            if (existingKeys.has(key)) {
+              return false;
+            }
+            existingKeys.add(key);
+            return true;
+          });
+
+          if (uniqueMembers.length === 0) {
+            return {};
+          }
+
+          const now = new Date().toISOString();
+          return {
+            groups: state.groups.map((item) =>
+              item.id === groupId
+                ? {
+                    ...item,
+                    members: [...item.members, ...uniqueMembers],
+                    updatedAt: now,
+                    updatedBy: state.profile.id
+                  }
+                : item
+            ),
+            activityLogs: [
+              {
+                id: `log-${Date.now()}`,
+                actorId: state.profile.id,
+                groupId,
+                entityType: "split_group",
+                entityId: groupId,
+                action: "members_added",
+                after: { memberCount: uniqueMembers.length },
+                createdAt: now,
+                updatedAt: now,
+                createdBy: state.profile.id
+              },
+              ...state.activityLogs
+            ]
+          };
+        }),
       addGroupExpense: (expense) =>
         set((state) => ({
           groupExpenses: [expense, ...state.groupExpenses],

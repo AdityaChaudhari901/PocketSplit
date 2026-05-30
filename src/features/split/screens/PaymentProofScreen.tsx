@@ -58,10 +58,10 @@ export const PaymentProofScreen = () => {
     <Screen>
       <View>
         <AppText variant="hero">Payment proof</AppText>
-        <AppText muted>Add UPI reference, note, or screenshot metadata. Real money movement is intentionally out of scope for MVP.</AppText>
+        <AppText muted>Add a reference, note, or screenshot metadata. Real money movement is intentionally out of scope for MVP.</AppText>
       </View>
       <Card style={styles.card}>
-        <TextField label="UPI/reference ID" value={reference} onChangeText={setReference} placeholder="Optional" />
+        <TextField label="Reference ID" value={reference} onChangeText={setReference} placeholder="Optional" />
         <TextField label="Note" value={note} onChangeText={setNote} placeholder="Cash paid, screenshot uploaded, etc." />
         <Button onPress={save} icon="checkmark-circle">
           Mark as paid

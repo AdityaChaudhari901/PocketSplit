@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { FilterChips } from "@/components/search/FilterChips";
+import { FilterSheet } from "@/components/search/FilterSheet";
+import { SearchResultItem } from "@/components/search/SearchResultItem";
 import { TransactionRow } from "@/components/cards/TransactionRow";
 import { Badge as GluestackBadge, BadgeText } from "@/components/gluestack/badge";
 import { Card as GluestackCard } from "@/components/gluestack/card";
@@ -11,8 +14,11 @@ import { Progress, ProgressFilledTrack } from "@/components/gluestack/progress";
 import { VStack } from "@/components/gluestack/vstack";
 import { AppText } from "@/components/ui/AppText";
 import { Card } from "@/components/ui/Card";
+import { SearchPill } from "@/components/ui/SearchPill";
 import { Screen } from "@/components/ui/Screen";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useFilterState, useSearchExpenses } from "@/features/search/hooks";
+import type { SearchParams } from "@/features/search/searchService";
 import { daysRemainingInMonth } from "@/lib/dates";
 import { useTranslation } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
@@ -38,6 +44,7 @@ type AppCurrency = ReturnType<typeof useAppStore.getState>["profile"]["currency"
 
 const RECENT_ACTIVITY_PREVIEW_LIMIT = 3;
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
+const HOME_SEARCH_RESULT_LIMIT = 5;
 
 const dueCopy = (daysUntilDue: number, t: Translate): string => {
   if (daysUntilDue < 0) {
@@ -63,6 +70,11 @@ export const HomeDashboardScreen = () => {
   const state = useAppStore();
   const [activityLimit, setActivityLimit] = useState(RECENT_ACTIVITY_PREVIEW_LIMIT);
   const [safeSpendVisible, setSafeSpendVisible] = useState(false);
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const { filters: homeSearchFilters, setFilters: setHomeSearchFilters, setFilter: setHomeSearchFilter, clearAllFilters: clearHomeSearchFilters, activeFilterCount } = useFilterState({
+    limit: HOME_SEARCH_RESULT_LIMIT
+  });
+  const homeSearchQuery = useSearchExpenses(homeSearchFilters);
   const snapshot = state.getDashboardSnapshot();
   const budgets = selectBudgetUsage(state);
   const upcomingBills = state.getUpcomingBills(30);
@@ -93,6 +105,49 @@ export const HomeDashboardScreen = () => {
   const daysLeft = daysRemainingInMonth();
   const spendPlanProgress = snapshot.allocatedSpendMinor > 0 ? Math.min(100, Math.round((snapshot.committedSpendMinor / snapshot.allocatedSpendMinor) * 100)) : 0;
   const fullRailCardWidth = Math.max(260, width - spacing.lg * 2);
+  const activeQuery = homeSearchFilters.query?.trim() ?? "";
+  const activeOptionFilterCount = Math.max(0, activeFilterCount - (activeQuery ? 1 : 0));
+  const showHomeSearchResults = Boolean(activeQuery) || activeOptionFilterCount > 0;
+  const homeSearchResult = homeSearchQuery.data;
+  const homeSearchResultCount = homeSearchResult?.total ?? 0;
+  const homeSearchResultLabel = homeSearchResultCount === 1 ? "1 result" : `${homeSearchResultCount} results`;
+  const clearHomeSearch = () => {
+    clearHomeSearchFilters();
+  };
+  const openHomeFilters = () => {
+    setFilterSheetVisible(true);
+  };
+  const loadMoreHomeResults = () => {
+    setHomeSearchFilter("limit", (homeSearchFilters.limit ?? HOME_SEARCH_RESULT_LIMIT) + HOME_SEARCH_RESULT_LIMIT);
+  };
+  const removeHomeSearchFilter = useCallback(
+    (key: keyof SearchParams, value?: string) => {
+      setHomeSearchFilters((current) => {
+        const next = { ...current, page: 1 };
+        if (key === "fromDate") {
+          delete next.fromDate;
+          delete next.toDate;
+          return next;
+        }
+        if (key === "minAmount") {
+          delete next.minAmount;
+          delete next.maxAmount;
+          return next;
+        }
+        if (key === "categoryIds" && value) {
+          next.categoryIds = current.categoryIds?.filter((id) => id !== value);
+          return next;
+        }
+        if (key === "tagIds" && value) {
+          next.tagIds = current.tagIds?.filter((id) => id !== value);
+          return next;
+        }
+        delete next[key];
+        return next;
+      });
+    },
+    [setHomeSearchFilters]
+  );
   const insightItems: HomeInsight[] = [
     !snapshot.hasSpendAllocation
       ? {
@@ -176,19 +231,6 @@ export const HomeDashboardScreen = () => {
         <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Search expenses"
-            hitSlop={8}
-            onPress={() => router.push("/(tabs)/search")}
-            style={({ pressed }) => [
-              styles.settingsButton,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              pressed ? styles.settingsButtonPressed : null
-            ]}
-          >
-            <Ionicons name="search" size={21} color={theme.colors.text} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
             accessibilityLabel={t("home.openSettings")}
             hitSlop={8}
             onPress={() => router.push("/modals/settings")}
@@ -202,6 +244,93 @@ export const HomeDashboardScreen = () => {
           </Pressable>
         </View>
       </View>
+
+      <SearchPill
+        accessibilityLabel={t("home.searchExpenses")}
+        placeholder={t("home.searchExpenses")}
+        rightBadgeCount={activeOptionFilterCount}
+        rightIcon="options-outline"
+        rightIconAccessibilityLabel="Open search filters"
+        value={homeSearchFilters.query ?? ""}
+        onChangeText={(query) => setHomeSearchFilter("query", query || undefined)}
+        onClear={() => setHomeSearchFilter("query", undefined)}
+        onRightIconPress={openHomeFilters}
+        showSearchIcon={false}
+      />
+
+      {showHomeSearchResults ? (
+        <Card elevated={false} style={[styles.homeSearchResultsCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <View style={styles.homeSearchResultsHeader}>
+            <View style={styles.homeSearchResultsTitle}>
+              <AppText variant="subtitle">Search results</AppText>
+              <AppText variant="caption" muted>
+                {homeSearchResultLabel}
+              </AppText>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Clear home search" hitSlop={8} onPress={clearHomeSearch} style={({ pressed }) => (pressed ? styles.pressed : null)}>
+              <AppText variant="caption" style={{ color: theme.colors.primary }}>
+                Clear
+              </AppText>
+            </Pressable>
+          </View>
+          <FilterChips
+            params={homeSearchFilters}
+            categories={state.categories}
+            tags={state.tags}
+            currency={state.profile.currency}
+            onRemove={removeHomeSearchFilter}
+            showQueryChip={false}
+          />
+          {homeSearchQuery.isLoading && !homeSearchResult ? (
+            <View style={styles.homeSearchLoadingStack}>
+              {[0, 1, 2].map((item) => (
+                <View key={item} style={[styles.homeSearchSkeleton, { backgroundColor: theme.colors.surfaceMuted }]} />
+              ))}
+            </View>
+          ) : homeSearchResult?.items.length ? (
+            <View style={styles.homeSearchList}>
+              {homeSearchResult.items.map((transaction) => (
+                <SearchResultItem
+                  key={transaction.id}
+                  transaction={transaction}
+                  category={state.categories.find((category) => category.id === transaction.categoryId)}
+                  tags={state.getTagsByExpense(transaction.id)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/modals/edit-transaction",
+                      params: { transactionId: transaction.id }
+                    })
+                  }
+                />
+              ))}
+              {homeSearchResult.hasMore ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Load more search results"
+                  onPress={loadMoreHomeResults}
+                  style={({ pressed }) => [
+                    styles.homeSearchMoreButton,
+                    { backgroundColor: theme.colors.surfaceMuted, borderColor: theme.colors.border },
+                    pressed ? styles.pressed : null
+                  ]}
+                >
+                  <AppText variant="caption" style={{ color: theme.colors.primary }}>
+                    Show more
+                  </AppText>
+                  <Ionicons name="chevron-down" size={16} color={theme.colors.primary} />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : (
+            <View style={[styles.homeSearchEmpty, { backgroundColor: theme.colors.surfaceMuted }]}>
+              <Ionicons name="search-outline" size={20} color={theme.colors.subtext} />
+              <AppText variant="caption" muted>
+                No expenses match your search.
+              </AppText>
+            </View>
+          )}
+        </Card>
+      ) : null}
 
       <MoneyOverviewCard
         currency={state.profile.currency}
@@ -302,6 +431,18 @@ export const HomeDashboardScreen = () => {
         onClose={() => setSafeSpendVisible(false)}
         snapshot={snapshot}
         visible={safeSpendVisible}
+      />
+      <FilterSheet
+        visible={filterSheetVisible}
+        params={homeSearchFilters}
+        categories={state.categories}
+        tags={state.tags}
+        currency={state.profile.currency}
+        onApply={(nextFilters) => {
+          setHomeSearchFilters(nextFilters);
+        }}
+        onClearAll={clearHomeSearchFilters}
+        onClose={() => setFilterSheetVisible(false)}
       />
     </>
   );
@@ -704,6 +845,52 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
     fontWeight: "900"
+  },
+  homeSearchResultsCard: {
+    gap: spacing.md,
+    borderRadius: 22,
+    padding: spacing.md
+  },
+  homeSearchResultsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  homeSearchResultsTitle: {
+    flex: 1,
+    minWidth: 0
+  },
+  homeSearchList: {
+    gap: spacing.sm
+  },
+  homeSearchLoadingStack: {
+    gap: spacing.sm
+  },
+  homeSearchSkeleton: {
+    height: 74,
+    borderRadius: 18
+  },
+  homeSearchEmpty: {
+    minHeight: 70,
+    borderRadius: 18,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  homeSearchMoreButton: {
+    minHeight: 42,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs
+  },
+  pressed: {
+    opacity: 0.72
   },
   safeSpendOverviewCard: {
     borderWidth: 1,

@@ -1,4 +1,4 @@
-import { calculateGroupBalances, simplifySettlements, validateSplit } from "@/lib/split";
+import { calculateGroupBalances, simplifySettlements, validateSplit, type SplitDraft } from "@/lib/split";
 import type { CurrencyCode, GroupExpense, SplitMember, SplitMethod } from "@/types/domain";
 
 export const createSplitExpense = ({
@@ -8,6 +8,7 @@ export const createSplitExpense = ({
   currency,
   paidByMemberId,
   splitMethod,
+  drafts,
   members,
   createdBy
 }: {
@@ -17,12 +18,14 @@ export const createSplitExpense = ({
   currency: CurrencyCode;
   paidByMemberId: string;
   splitMethod: SplitMethod;
+  drafts?: SplitDraft[];
   members: SplitMember[];
   createdBy: string;
 }): GroupExpense => {
   const validation = validateSplit({
     amountMinor,
     method: splitMethod,
+    drafts,
     memberIds: members.filter((member) => !member.deletedAt).map((member) => member.id)
   });
 

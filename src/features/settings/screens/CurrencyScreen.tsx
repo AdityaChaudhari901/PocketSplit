@@ -5,8 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { AppText } from "@/components/ui/AppText";
 import { Screen } from "@/components/ui/Screen";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { TextField } from "@/components/ui/TextField";
+import { SearchPill } from "@/components/ui/SearchPill";
 import { getCurrencyMinorUnit, SUPPORTED_CURRENCIES, type SupportedCurrencyCode } from "@/lib/currencies";
 import { radius, spacing, useAppTheme } from "@/lib/theme";
 import { useAppStore } from "@/store/app.store";
@@ -31,7 +30,7 @@ export const CurrencyScreen = () => {
 
   const chooseCurrency = (currency: SupportedCurrencyCode) => {
     if (currency === profileCurrency) {
-      router.back();
+      handleBack();
       return;
     }
 
@@ -44,11 +43,20 @@ export const CurrencyScreen = () => {
           text: "Use currency",
           onPress: () => {
             setCurrency(currency);
-            router.back();
+            handleBack();
           }
         }
       ]
     );
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/modals/settings");
   };
 
   return (
@@ -58,14 +66,12 @@ export const CurrencyScreen = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={8}
-          onPress={() => router.back()}
-          style={({ pressed }) => [
-            styles.backButton,
-            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-            pressed ? styles.pressed : null
-          ]}
+          onPress={handleBack}
+          style={({ pressed }) => (pressed ? styles.pressed : null)}
         >
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          <View style={[styles.backButton, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}>
+            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+          </View>
         </Pressable>
         <AppText variant="subtitle" style={styles.headerTitle}>
           Currency
@@ -78,9 +84,16 @@ export const CurrencyScreen = () => {
         <AppText muted>All supported ISO currencies are listed. Amounts stay the same; only the currency unit changes.</AppText>
       </View>
 
-      <TextField label="Search" value={query} onChangeText={setQuery} placeholder="Search by code or country currency" leftIcon="search" autoCapitalize="characters" />
+      <SearchPill
+        accessibilityLabel="Search by code or country currency"
+        autoCapitalize="characters"
+        label="Search"
+        placeholder="Search by code or country currency"
+        value={query}
+        onChangeText={setQuery}
+      />
 
-      <View style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <View style={[styles.group, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}>
         {visibleCurrencies.map((currency) => {
           const selected = currency.code === profileCurrency;
           const minorUnit = getCurrencyMinorUnit(currency.code);
@@ -90,20 +103,33 @@ export const CurrencyScreen = () => {
               accessibilityRole="button"
               accessibilityLabel={`Use ${currency.name}`}
               onPress={() => chooseCurrency(currency.code)}
-              style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
+              style={({ pressed }) => (pressed ? styles.pressed : null)}
             >
-              <View style={[styles.codeBadge, { backgroundColor: selected ? theme.colors.primarySoft : theme.colors.surfaceMuted }]}>
-                <AppText variant="caption" style={{ color: selected ? theme.colors.primary : theme.colors.text }}>
-                  {currency.code}
-                </AppText>
+              <View style={styles.row}>
+                <View style={[styles.codeBadge, { backgroundColor: selected ? theme.colors.primarySoft : theme.colors.surfaceMuted }]}>
+                  <AppText variant="caption" style={[styles.codeText, { color: selected ? theme.colors.primary : theme.colors.text }]}>
+                    {currency.code}
+                  </AppText>
+                </View>
+                <View style={styles.copy}>
+                  <AppText variant="body" numberOfLines={1}>
+                    {currency.name}
+                  </AppText>
+                  <AppText variant="caption" muted numberOfLines={1}>
+                    {minorUnit === 0 ? "No decimals" : `${minorUnit} decimal places`}
+                  </AppText>
+                </View>
+                {selected ? (
+                  <View style={[styles.selectedPill, { backgroundColor: theme.colors.primarySoft }]}>
+                    <Ionicons name="checkmark" size={14} color={theme.colors.primary} />
+                    <AppText variant="caption" style={{ color: theme.colors.primary }}>
+                      Selected
+                    </AppText>
+                  </View>
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
+                )}
               </View>
-              <View style={styles.copy}>
-                <AppText variant="body">{currency.name}</AppText>
-                <AppText variant="caption" muted>
-                  {minorUnit === 0 ? "No decimals" : `${minorUnit} decimal places`}
-                </AppText>
-              </View>
-              {selected ? <StatusBadge label="Selected" tone="ai" /> : <Ionicons name="chevron-forward" size={18} color={theme.colors.subtext} />}
             </Pressable>
           );
         })}
@@ -114,11 +140,12 @@ export const CurrencyScreen = () => {
 
 const styles = StyleSheet.create({
   screenContent: {
-    paddingTop: spacing.sm,
-    gap: spacing.lg
+    paddingTop: spacing.md,
+    paddingBottom: 120,
+    gap: 20
   },
   header: {
-    minHeight: 56,
+    minHeight: 68,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between"
@@ -126,29 +153,39 @@ const styles = StyleSheet.create({
   backButton: {
     width: 56,
     height: 56,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    borderRadius: 18,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 2
   },
   headerTitle: {
     flex: 1,
-    textAlign: "center"
+    textAlign: "center",
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800"
   },
   headerSpacer: {
     width: 56,
     height: 56
   },
   heroCopy: {
-    gap: spacing.xs
+    gap: spacing.sm
   },
   group: {
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: "hidden"
+    borderRadius: 26,
+    overflow: "hidden",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.07,
+    shadowRadius: 30,
+    elevation: 2
   },
   row: {
-    minHeight: 68,
+    width: "100%",
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
@@ -156,15 +193,27 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md
   },
   codeBadge: {
-    width: 54,
-    height: 38,
-    borderRadius: radius.md,
+    width: 58,
+    height: 44,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center"
   },
+  codeText: {
+    fontWeight: "800"
+  },
   copy: {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
+    gap: 2
+  },
+  selectedPill: {
+    minHeight: 30,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs
   },
   pressed: {
     opacity: 0.72

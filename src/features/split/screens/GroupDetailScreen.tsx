@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { Alert, Share, StyleSheet, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { ExportSheet } from "@/components/export/ExportSheet";
 import { BalanceRow } from "@/components/split/BalanceRow";
@@ -11,12 +12,13 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MoneyAmount } from "@/components/ui/MoneyAmount";
 import { Screen } from "@/components/ui/Screen";
-import { spacing } from "@/lib/theme";
+import { radius, spacing, useAppTheme } from "@/lib/theme";
 import { useAppStore } from "@/store/app.store";
 
 export const GroupDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const theme = useAppTheme();
   const state = useAppStore();
   const group = state.groups.find((item) => item.id === id);
   const [exportVisible, setExportVisible] = useState(false);
@@ -35,6 +37,19 @@ export const GroupDetailScreen = () => {
   const currentBalance = balances.find((balance) => balance.memberId === currentMember?.id)?.netMinor ?? 0;
   const totalSpentMinor = expenses.reduce((total, expense) => total + expense.amountMinor, 0);
   const paidByUser = expenses.filter((expense) => expense.paidByMemberId === currentMember?.id).reduce((total, expense) => total + expense.amountMinor, 0);
+  const inviteLink = `https://pocketsplit.app/join/${group.id.replace(/^group-/, "").slice(0, 8).toUpperCase()}`;
+
+  const shareInviteLink = async () => {
+    try {
+      await Share.share({
+        title: `Join ${group.name} on PocketSplit`,
+        message: `Join ${group.name} on PocketSplit: ${inviteLink}`,
+        url: inviteLink
+      });
+    } catch {
+      Alert.alert("Share failed", "Could not open the share sheet. Please try again.");
+    }
+  };
 
   return (
     <Screen>
@@ -79,6 +94,34 @@ export const GroupDetailScreen = () => {
           <Button onPress={() => setExportVisible(true)} variant="secondary" icon="share-outline">
             Export
           </Button>
+        </View>
+      </Card>
+
+      <Card style={styles.card}>
+        <View style={styles.inviteHeader}>
+          <View style={[styles.inviteIcon, { backgroundColor: theme.colors.primarySoft }]}>
+            <Ionicons name="person-add-outline" size={22} color={theme.colors.primary} />
+          </View>
+          <View style={styles.headerCopy}>
+            <AppText variant="subtitle">Invite members</AppText>
+            <AppText variant="caption" muted>
+              Add contacts or share the group invite link.
+            </AppText>
+          </View>
+        </View>
+        <View style={styles.actions}>
+          <Button onPress={() => router.push(`/modals/add-group-members?groupId=${group.id}`)} variant="secondary" icon="person-add-outline">
+            Add members
+          </Button>
+          <Button onPress={shareInviteLink} variant="secondary" icon="link-outline">
+            Share link
+          </Button>
+        </View>
+        <View style={[styles.inviteLink, { backgroundColor: theme.colors.surfaceMuted, borderColor: theme.colors.border }]}>
+          <Ionicons name="link-outline" size={17} color={theme.colors.primary} />
+          <AppText variant="caption" muted numberOfLines={1}>
+            {inviteLink}
+          </AppText>
         </View>
       </Card>
 
@@ -157,6 +200,27 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: spacing.md
+  },
+  inviteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md
+  },
+  inviteIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  inviteLink: {
+    minHeight: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md
   },
   timelineRow: {
     minHeight: 54,
