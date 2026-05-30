@@ -158,6 +158,7 @@ export const SettingsScreen = () => {
         <SettingsRow icon="repeat-outline" title={t("settings.recurringBills")} subtitle={t("settings.recurringBills.subtitle")} onPress={() => router.push("/modals/recurring-bills")} />
         <SettingsRow icon="flag-outline" title={t("settings.savingsGoals")} subtitle={t("settings.savingsGoals.subtitle")} onPress={() => router.push("/modals/savings-goals")} />
         <SettingsRow icon="pricetags-outline" title={t("settings.categories")} subtitle={t("settings.categories.subtitle")} onPress={() => router.push("/modals/categories")} />
+        <SettingsRow icon="bookmark-outline" title="Tags" subtitle="Reusable filters for expenses" onPress={() => router.push("/(tabs)/tags")} />
       </GluestackCard>
 
       <GluestackCard size="md" variant="outline" className="p-0 overflow-hidden" style={[styles.group, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>

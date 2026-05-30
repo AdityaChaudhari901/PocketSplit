@@ -173,19 +173,34 @@ export const HomeDashboardScreen = () => {
         <View style={styles.headerCopy}>
           <AppText variant="hero">{t("home.greeting", { name: state.profile.displayName })}</AppText>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("home.openSettings")}
-          hitSlop={8}
-          onPress={() => router.push("/modals/settings")}
-          style={({ pressed }) => [
-            styles.settingsButton,
-            { backgroundColor: theme.colors.surface, borderColor: theme.colors.primary },
-            pressed ? styles.settingsButtonPressed : null
-          ]}
-        >
-          <AppText style={[styles.settingsInitial, { color: theme.colors.text }]}>{profileInitial}</AppText>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Search expenses"
+            hitSlop={8}
+            onPress={() => router.push("/(tabs)/search")}
+            style={({ pressed }) => [
+              styles.settingsButton,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              pressed ? styles.settingsButtonPressed : null
+            ]}
+          >
+            <Ionicons name="search" size={21} color={theme.colors.text} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("home.openSettings")}
+            hitSlop={8}
+            onPress={() => router.push("/modals/settings")}
+            style={({ pressed }) => [
+              styles.settingsButton,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.primary },
+              pressed ? styles.settingsButtonPressed : null
+            ]}
+          >
+            <AppText style={[styles.settingsInitial, { color: theme.colors.text }]}>{profileInitial}</AppText>
+          </Pressable>
+        </View>
       </View>
 
       <MoneyOverviewCard
@@ -244,6 +259,7 @@ export const HomeDashboardScreen = () => {
                   key={transaction.id}
                   transaction={transaction}
                   category={state.categories.find((category) => category.id === transaction.categoryId)}
+                  tags={state.getTagsByExpense(transaction.id)}
                   onPress={() =>
                     router.push({
                       pathname: "/modals/edit-transaction",
@@ -663,6 +679,11 @@ const styles = StyleSheet.create({
   },
   headerCopy: {
     flex: 1
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
   },
   settingsButton: {
     width: 48,

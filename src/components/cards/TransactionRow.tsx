@@ -4,17 +4,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { AppText } from "@/components/ui/AppText";
 import { formatMoney } from "@/lib/money";
 import { radius, spacing, useAppTheme } from "@/lib/theme";
-import type { Category, Transaction } from "@/types/domain";
+import type { Category, Tag, Transaction } from "@/types/domain";
 
 interface TransactionRowProps {
   transaction: Transaction;
   category?: Category;
+  tags?: Tag[];
   onPress?: () => void;
 }
 
-export const TransactionRow = ({ transaction, category, onPress }: TransactionRowProps) => {
+export const TransactionRow = ({ transaction, category, tags = [], onPress }: TransactionRowProps) => {
   const theme = useAppTheme();
   const isIncome = transaction.type === "income";
+  const tagLabel = tags.length > 0 ? ` • ${tags.map((tag) => tag.name).join(", ")}` : "";
   const content = (
     <>
       <View style={[styles.icon, { backgroundColor: isIncome ? theme.colors.successSoft : theme.colors.surfaceMuted }]}>
@@ -24,6 +26,7 @@ export const TransactionRow = ({ transaction, category, onPress }: TransactionRo
         <AppText variant="body">{transaction.merchant || category?.name || "Transaction"}</AppText>
         <AppText variant="caption" muted>
           {category?.name ?? "Uncategorized"} • {transaction.occurredAt.slice(0, 10)}
+          {tagLabel}
         </AppText>
       </View>
       <AppText variant="body" style={{ color: isIncome ? theme.colors.success : theme.colors.text }}>

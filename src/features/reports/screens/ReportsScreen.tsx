@@ -1,74 +1,118 @@
-import { useMemo } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { StyleSheet, View } from "react-native";
 
-import { ChartCard } from "@/components/cards/ChartCard";
+import { ExportSheet } from "@/components/export/ExportSheet";
+import { BudgetVsActualCard } from "@/components/reports/BudgetVsActualCard";
+import { CategoryBreakdownChart } from "@/components/reports/CategoryBreakdownChart";
+import { MonthlyTrendChart } from "@/components/reports/MonthlyTrendChart";
+import { PeriodSelector } from "@/components/reports/PeriodSelector";
+import { SummaryCards } from "@/components/reports/SummaryCards";
+import { TopMerchantsCard } from "@/components/reports/TopMerchantsCard";
 import { PaywallCard } from "@/components/cards/PaywallCard";
 import { AppText } from "@/components/ui/AppText";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { MoneyAmount } from "@/components/ui/MoneyAmount";
 import { Screen } from "@/components/ui/Screen";
-import { monthKey } from "@/lib/dates";
+import { useBudgetVsActual, useCategoryBreakdown, useMonthlySummary, useMonthlyTrend, useTopMerchants } from "@/features/reports/hooks";
 import { formatMoney } from "@/lib/money";
 import { spacing } from "@/lib/theme";
 import { canUseFeature } from "@/services/entitlement.service";
-import { buildTransactionsCsv, queuePdfExport } from "@/services/export.service";
 import { getExpectedBillsMinorForMonth } from "@/services/recurring-bill.service";
 import { getMonthlySavingsReserveMinor } from "@/services/savings-goal.service";
 import { useAppStore } from "@/store/app.store";
 
+interface PeriodState {
+  year: number;
+  month: number;
+}
+
+const currentPeriod = (date = new Date()): PeriodState => ({
+  year: date.getFullYear(),
+  month: date.getMonth() + 1
+});
+
+const shiftPeriod = ({ year, month }: PeriodState, offset: number): PeriodState => {
+  const date = new Date(Date.UTC(year, month - 1 + offset, 1));
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1
+  };
+};
+
+const asError = (value: unknown): Error | null => (value instanceof Error ? value : value ? new Error("Unable to load this report.") : null);
+
+const periodDateRange = ({ year, month }: PeriodState): { fromDate: string; toDate: string } => {
+  const monthText = `${month}`.padStart(2, "0");
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    fromDate: `${year}-${monthText}-01`,
+    toDate: `${year}-${monthText}-${`${lastDay}`.padStart(2, "0")}`
+  };
+};
+
 export const ReportsScreen = () => {
   const state = useAppStore();
-  const snapshot = state.getDashboardSnapshot();
-  const canExportPdf = canUseFeature(state.entitlement, "pdf_export");
+  const canExportData = canUseFeature(state.entitlement, "data_export");
   const expectedBillsMinor = getExpectedBillsMinorForMonth(state.recurringBills);
   const savingsReserveMinor = getMonthlySavingsReserveMinor(state.savingsGoals);
   const activeRecurringBills = state.recurringBills.filter((bill) => bill.status === "active");
   const activeSavingsGoals = state.savingsGoals.filter((goal) => goal.status === "active");
-  const currentMonth = monthKey();
-
-  const categoryRows = useMemo(() => {
-    const totalExpense = Math.max(snapshot.expenseMinor, 1);
-    return state.categories
-      .filter((category) => category.kind === "expense")
-      .map((category) => ({
-        label: category.name,
-        value: Math.round((state.getCategorySpend(category.id, currentMonth) / totalExpense) * 100)
-      }))
-      .filter((row) => row.value > 0)
-      .sort((left, right) => right.value - left.value)
-      .slice(0, 5);
-  }, [currentMonth, snapshot.expenseMinor, state]);
+  const [period, setPeriod] = useState<PeriodState>(() => currentPeriod());
+  const [exportVisible, setExportVisible] = useState(false);
+  const summaryQuery = useMonthlySummary(period.year, period.month);
+  const trendQuery = useMonthlyTrend(6, period.year, period.month);
+  const categoryQuery = useCategoryBreakdown(period.year, period.month);
+  const merchantQuery = useTopMerchants(period.year, period.month, 5);
+  const budgetQuery = useBudgetVsActual(period.year, period.month);
+  const exportRange = periodDateRange(period);
 
   return (
-    <Screen>
-      <View>
+    <Screen contentStyle={styles.screenContent}>
+      <View style={styles.heroCopy}>
         <AppText variant="hero">Reports</AppText>
-        <AppText muted>Monthly overview, budget progress, subscriptions, savings goals, and split reports.</AppText>
+        <AppText muted>Monthly analytics, category spend, top merchants, budgets, subscriptions, savings, and exports.</AppText>
       </View>
 
-      <Card style={styles.summary}>
-        <View>
-          <AppText variant="caption" muted>
-            Income
-          </AppText>
-          <MoneyAmount amountMinor={snapshot.incomeMinor} currency={state.profile.currency} />
-        </View>
-        <View>
-          <AppText variant="caption" muted>
-            Expenses
-          </AppText>
-          <MoneyAmount amountMinor={snapshot.expenseMinor} currency={state.profile.currency} />
-        </View>
-      </Card>
+      <PeriodSelector year={period.year} month={period.month} onPrevious={() => setPeriod((current) => shiftPeriod(current, -1))} onNext={() => setPeriod((current) => shiftPeriod(current, 1))} />
 
-      <ChartCard title="Category breakdown" rows={categoryRows.length ? categoryRows : [{ label: "No expense data", value: 0 }]} />
-      <ChartCard
-        title="Budget progress"
-        rows={[
-          { label: "Used", value: Math.min(100, Math.round((snapshot.expenseMinor / Math.max(snapshot.incomeMinor, 1)) * 100)), colorTone: "warning" },
-          { label: "Available", value: Math.max(0, Math.round((snapshot.availableMinor / Math.max(snapshot.incomeMinor, 1)) * 100)), colorTone: "success" }
-        ]}
+      <SummaryCards
+        summary={summaryQuery.data}
+        currency={state.profile.currency}
+        loading={summaryQuery.isLoading}
+        error={asError(summaryQuery.error)}
+        onRetry={() => void summaryQuery.refetch()}
+      />
+
+      <MonthlyTrendChart
+        data={trendQuery.data}
+        currency={state.profile.currency}
+        loading={trendQuery.isLoading}
+        error={asError(trendQuery.error)}
+        onRetry={() => void trendQuery.refetch()}
+      />
+
+      <CategoryBreakdownChart
+        rows={categoryQuery.data}
+        currency={state.profile.currency}
+        loading={categoryQuery.isLoading}
+        error={asError(categoryQuery.error)}
+        onRetry={() => void categoryQuery.refetch()}
+      />
+
+      <TopMerchantsCard
+        rows={merchantQuery.data}
+        currency={state.profile.currency}
+        loading={merchantQuery.isLoading}
+        error={asError(merchantQuery.error)}
+        onRetry={() => void merchantQuery.refetch()}
+      />
+
+      <BudgetVsActualCard
+        rows={budgetQuery.data}
+        currency={state.profile.currency}
+        loading={budgetQuery.isLoading}
+        error={asError(budgetQuery.error)}
+        onRetry={() => void budgetQuery.refetch()}
       />
 
       <Card style={styles.summary}>
@@ -96,36 +140,36 @@ export const ReportsScreen = () => {
         </View>
       </Card>
 
-      {canExportPdf ? (
+      {canExportData ? (
         <View style={styles.actions}>
-          <Button
-            icon="document-text"
-            onPress={() => {
-              const csv = buildTransactionsCsv(state.transactions);
-              Alert.alert("CSV generated", `${csv.split("\n").length - 1} transactions are ready for export wiring.`);
-            }}
-          >
-            Export CSV
-          </Button>
-          <Button
-            icon="document"
-            variant="secondary"
-            onPress={async () => {
-              const result = await queuePdfExport();
-              Alert.alert("PDF export", result.message);
-            }}
-          >
-            Export PDF
+          <Button icon="share-outline" onPress={() => setExportVisible(true)}>
+            Export report
           </Button>
         </View>
       ) : (
-        <PaywallCard title="Advanced exports are Pro" body="PDF exports, deep reports, and anomaly detection are gated through central entitlements." />
+        <PaywallCard title="Exports are locked" body="CSV and PDF report exports are gated through central entitlements." />
       )}
+      <ExportSheet
+        visible={exportVisible}
+        onClose={() => setExportVisible(false)}
+        initialParams={{
+          scope: "personal",
+          format: "pdf",
+          fromDate: exportRange.fromDate,
+          toDate: exportRange.toDate
+        }}
+      />
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
+  screenContent: {
+    paddingBottom: 140
+  },
+  heroCopy: {
+    gap: spacing.xs
+  },
   summary: {
     gap: spacing.md
   },

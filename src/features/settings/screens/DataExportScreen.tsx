@@ -1,48 +1,31 @@
-import { Alert, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { useRouter } from "expo-router";
+import { View } from "react-native";
 
+import { ExportSheet } from "@/components/export/ExportSheet";
 import { AppText } from "@/components/ui/AppText";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/ui/Screen";
-import { buildTransactionsCsv, queuePdfExport } from "@/services/export.service";
-import { spacing } from "@/lib/theme";
-import { useAppStore } from "@/store/app.store";
 
 export const DataExportScreen = () => {
-  const transactions = useAppStore((state) => state.transactions);
+  const router = useRouter();
+  const [visible, setVisible] = useState(true);
+
+  const closeSheet = () => {
+    setVisible(false);
+    router.back();
+  };
+
   return (
     <Screen>
       <View>
         <AppText variant="hero">Data export</AppText>
-        <AppText muted>Export architecture for CSV/PDF. Production should stream files through a secure backend job.</AppText>
+        <AppText muted>Export personal, group, or combined data as a CSV or PDF file.</AppText>
       </View>
-      <Card style={styles.card}>
-        <Button
-          icon="document-text"
-          onPress={() => {
-            const csv = buildTransactionsCsv(transactions);
-            Alert.alert("CSV generated", `${csv.split("\n").length - 1} transactions included.`);
-          }}
-        >
-          Generate CSV
-        </Button>
-        <Button
-          variant="secondary"
-          icon="document"
-          onPress={async () => {
-            const result = await queuePdfExport();
-            Alert.alert("PDF export", result.message);
-          }}
-        >
-          Queue PDF export
-        </Button>
-      </Card>
+      <Button icon="share-outline" onPress={() => setVisible(true)}>
+        Open export options
+      </Button>
+      <ExportSheet visible={visible} onClose={closeSheet} />
     </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    gap: spacing.md
-  }
-});

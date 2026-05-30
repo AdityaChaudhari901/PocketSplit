@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StyleSheet, View } from "react-native";
 
+import { ExportSheet } from "@/components/export/ExportSheet";
 import { BalanceRow } from "@/components/split/BalanceRow";
 import { MemberAvatarStack } from "@/components/split/MemberAvatarStack";
 import { AppText } from "@/components/ui/AppText";
@@ -17,6 +19,7 @@ export const GroupDetailScreen = () => {
   const router = useRouter();
   const state = useAppStore();
   const group = state.groups.find((item) => item.id === id);
+  const [exportVisible, setExportVisible] = useState(false);
 
   if (!group) {
     return (
@@ -73,6 +76,9 @@ export const GroupDetailScreen = () => {
           <Button onPress={() => router.push(`/modals/settle-up?groupId=${group.id}`)} variant="secondary" icon="swap-horizontal">
             Settle Up
           </Button>
+          <Button onPress={() => setExportVisible(true)} variant="secondary" icon="share-outline">
+            Export
+          </Button>
         </View>
       </Card>
 
@@ -119,6 +125,17 @@ export const GroupDetailScreen = () => {
           ))}
         {state.activityLogs.filter((log) => log.groupId === group.id).length === 0 ? <AppText muted>No activity yet.</AppText> : null}
       </Card>
+
+      <ExportSheet
+        visible={exportVisible}
+        onClose={() => setExportVisible(false)}
+        initialParams={{
+          scope: "group",
+          format: "csv",
+          groupId: group.id,
+          includeSettlements: true
+        }}
+      />
     </Screen>
   );
 };

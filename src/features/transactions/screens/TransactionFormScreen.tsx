@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, StyleSheet, View } from "react-native";
 
-import { CategoryPill } from "@/components/forms/CategoryPill";
+import { CategorySelector } from "@/components/categories/CategorySelector";
+import { TagSelector } from "@/components/tags/TagSelector";
 import { AppText } from "@/components/ui/AppText";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -28,12 +29,14 @@ export const TransactionFormScreen = ({ type, transactionId }: TransactionFormSc
   const addTransaction = useAppStore((store) => store.addTransaction);
   const updateTransaction = useAppStore((store) => store.updateTransaction);
   const deleteTransaction = useAppStore((store) => store.deleteTransaction);
+  const setExpenseTags = useAppStore((store) => store.setExpenseTags);
   const consumeFeatureUsage = useAppStore((store) => store.consumeFeatureUsage);
   const existingTransaction = transactionId ? state.transactions.find((transaction) => transaction.id === transactionId && !transaction.deletedAt) : undefined;
   const resolvedType = existingTransaction?.type ?? type ?? "expense";
   const categories = state.categories.filter((category) => category.kind === resolvedType);
   const defaultCategory = existingTransaction?.categoryId ?? categories[0]?.id ?? "";
   const defaultWallet = existingTransaction?.walletId ?? state.wallets[0]?.id ?? "";
+  const defaultTagIds = existingTransaction ? state.getTagsByExpense(existingTransaction.id).map((tag) => tag.id) : [];
 
   const {
     control,
@@ -48,6 +51,7 @@ export const TransactionFormScreen = ({ type, transactionId }: TransactionFormSc
       amountMajor: existingTransaction ? minorToMajorInput(existingTransaction.amountMinor) : "",
       walletId: defaultWallet,
       categoryId: defaultCategory,
+      tagIds: defaultTagIds,
       merchant: existingTransaction?.merchant ?? "",
       note: existingTransaction?.note ?? "",
       occurredAt: existingTransaction?.occurredAt ?? new Date().toISOString()
@@ -56,6 +60,7 @@ export const TransactionFormScreen = ({ type, transactionId }: TransactionFormSc
 
   const selectedCategoryId = watch("categoryId");
   const selectedWalletId = watch("walletId");
+  const selectedTagIds = watch("tagIds");
   const isEditing = Boolean(existingTransaction);
   const title = isEditing
     ? resolvedType === "income"
@@ -127,9 +132,11 @@ export const TransactionFormScreen = ({ type, transactionId }: TransactionFormSc
           updatedAt: now,
           updatedBy: state.profile.id
         });
+        setExpenseTags(existingTransaction.id, values.tagIds);
       } else {
+        const transactionId = `txn-${Date.now()}`;
         addTransaction({
-          id: `txn-${Date.now()}`,
+          id: transactionId,
           ownerId: state.profile.id,
           walletId: values.walletId,
           categoryId: values.categoryId,
@@ -144,6 +151,7 @@ export const TransactionFormScreen = ({ type, transactionId }: TransactionFormSc
           createdBy: state.profile.id,
           updatedBy: state.profile.id
         });
+        setExpenseTags(transactionId, values.tagIds);
       }
       router.back();
     },
@@ -201,11 +209,15 @@ export const TransactionFormScreen = ({ type, transactionId }: TransactionFormSc
             />
           )}
         />
-        <View style={styles.pills}>
-          {categories.map((category) => (
-            <CategoryPill key={category.id} label={category.name} selected={selectedCategoryId === category.id} onPress={() => setValue("categoryId", category.id)} />
-          ))}
-        </View>
+        <CategorySelector
+          categories={state.categories}
+          selectedCategoryId={selectedCategoryId}
+          kind={resolvedType}
+          includeSelectedArchived
+          onSelect={(categoryId) => setValue("categoryId", categoryId, { shouldValidate: true })}
+          error={errors.categoryId?.message}
+        />
+        {resolvedType === "expense" ? <TagSelector tags={state.tags} selectedTagIds={selectedTagIds ?? []} onChange={(tagIds) => setValue("tagIds", tagIds)} /> : null}
         <Controller
           control={control}
           name="note"
@@ -239,10 +251,5 @@ export const EditTransactionScreen = () => {
 const styles = StyleSheet.create({
   form: {
     gap: spacing.md
-  },
-  pills: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm
   }
 });

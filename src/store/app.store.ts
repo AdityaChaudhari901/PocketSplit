@@ -8,6 +8,8 @@ import { DEFAULT_APP_LANGUAGE, isSupportedAppLanguageCode, type AppLanguageCode 
 import { calculateBudgetUsage, calculateMoneyPulse, calculateMonthlySpendPlan, calculateSafeDailySpend } from "@/lib/money";
 import { calculateGroupBalances } from "@/lib/split";
 import { applyTransactionReplacement, applyTransactionWalletEffect, recalculateWalletBalances, sumCategorySpend } from "@/lib/transaction-ledger";
+import { archiveCategory as archiveCategoryRecord, deleteCategory as deleteCategoryRecord, updateCategory as updateCategoryRecord } from "@/features/categories/categoryService";
+import { archiveTag as archiveTagRecord, deleteTag as deleteTagRecord, updateTag as updateTagRecord, setExpenseTags as setExpenseTagsRecord } from "@/features/tags/tagService";
 import { consumeUsage, getDefaultPlanForAuthMode } from "@/services/entitlement.service";
 import { getExpectedBillsMinorForMonth, getUpcomingBills, markRecurringBillPaid, updateRecurringBillStatus, type UpcomingBill } from "@/services/recurring-bill.service";
 import {
@@ -23,6 +25,7 @@ import type {
   Budget,
   Category,
   EntitlementState,
+  ExpenseTag,
   FeatureName,
   GroupExpense,
   MonthlySpendingPlan,
@@ -35,6 +38,7 @@ import type {
   SavingsGoalStatus,
   Settlement,
   SplitGroup,
+  Tag,
   Transaction,
   Wallet
 } from "@/types/domain";
@@ -43,6 +47,8 @@ type DomainCollections = Pick<
   AppState,
   | "wallets"
   | "categories"
+  | "tags"
+  | "expenseTags"
   | "transactions"
   | "budgets"
   | "monthlySpendingPlans"
@@ -79,6 +85,8 @@ export interface AppState {
   profile: Profile;
   wallets: Wallet[];
   categories: Category[];
+  tags: Tag[];
+  expenseTags: ExpenseTag[];
   transactions: Transaction[];
   budgets: Budget[];
   monthlySpendingPlans: MonthlySpendingPlan[];
@@ -106,6 +114,16 @@ export interface AppState {
   setCurrency: (currency: Profile["currency"]) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
   setAppLanguage: (appLanguage: AppLanguageCode) => void;
+  addCategory: (category: Category) => void;
+  updateCategory: (categoryId: string, data: Pick<Category, "name" | "color" | "icon" | "kind">) => void;
+  archiveCategory: (categoryId: string) => void;
+  deleteCategory: (categoryId: string) => void;
+  addTag: (tag: Tag) => void;
+  updateTag: (tagId: string, data: Pick<Tag, "name" | "color">) => void;
+  archiveTag: (tagId: string) => void;
+  deleteTag: (tagId: string) => void;
+  setExpenseTags: (expenseId: string, tagIds: string[]) => void;
+  getTagsByExpense: (expenseId: string) => Tag[];
   addTransaction: (transaction: Transaction) => void;
   updateTransaction: (transaction: Transaction) => void;
   deleteTransaction: (transactionId: string) => void;
@@ -157,6 +175,8 @@ const createEmptyCollections = (profileId?: string, currency = DEFAULT_CURRENCY)
   return {
     wallets: profileId ? createSystemWallets(profileId, now, currency) : [],
     categories: profileId ? createSystemCategories(profileId, now) : [],
+    tags: [],
+    expenseTags: [],
     transactions: [],
     budgets: [],
     monthlySpendingPlans: [],
@@ -324,6 +344,49 @@ export const useAppStore = create<AppState>()(
             settlements: state.settlements.map((settlement) => ({ ...settlement, currency, updatedAt: now, updatedBy: state.profile.id }))
           };
         }),
+      addCategory: (category) =>
+        set((state) => ({
+          categories: [category, ...state.categories],
+          entitlement: consumeUsage(state.entitlement, "custom_categories")
+        })),
+      updateCategory: (categoryId, data) =>
+        set((state) => {
+          const result = updateCategoryRecord(categoryId, data, state.categories, state.profile.id);
+          return { categories: result.categories };
+        }),
+      archiveCategory: (categoryId) =>
+        set((state) => {
+          const result = archiveCategoryRecord(categoryId, state.categories, state.profile.id, state.transactions);
+          return { categories: result.categories };
+        }),
+      deleteCategory: (categoryId) =>
+        set((state) => ({
+          categories: deleteCategoryRecord(categoryId, state.categories, state.transactions)
+        })),
+      addTag: (tag) => set((state) => ({ tags: [tag, ...state.tags] })),
+      updateTag: (tagId, data) =>
+        set((state) => {
+          const result = updateTagRecord(tagId, data, state.tags, state.profile.id);
+          return { tags: result.tags };
+        }),
+      archiveTag: (tagId) =>
+        set((state) => {
+          const result = archiveTagRecord(tagId, state.tags, state.profile.id, state.expenseTags);
+          return { tags: result.tags };
+        }),
+      deleteTag: (tagId) =>
+        set((state) => ({
+          tags: deleteTagRecord(tagId, state.tags, state.expenseTags)
+        })),
+      setExpenseTags: (expenseId, tagIds) =>
+        set((state) => ({
+          expenseTags: setExpenseTagsRecord(expenseId, tagIds, state.expenseTags, state.profile.id)
+        })),
+      getTagsByExpense: (expenseId) => {
+        const state = get();
+        const tagIds = new Set(state.expenseTags.filter((item) => item.expenseId === expenseId).map((item) => item.tagId));
+        return state.tags.filter((tag) => tagIds.has(tag.id));
+      },
       addTransaction: (transaction) =>
         set((state) => {
           const now = new Date().toISOString();
@@ -639,7 +702,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "pocketsplit-store-v1",
-      version: 10,
+      version: 11,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persistedState) => {
         const { hasCompletedOnboarding, ...state } = (persistedState ?? {}) as PersistedAppState;
@@ -666,6 +729,8 @@ export const useAppStore = create<AppState>()(
                     ? ensureSystemCategories(profile.id, state.categories ?? [])
                     : (state.categories ?? [])
                   : createSystemCategories(profile.id, migrationNow),
+              tags: state.tags ?? [],
+              expenseTags: state.expenseTags ?? [],
               transactions: state.transactions ?? [],
               budgets: state.budgets ?? [],
               monthlySpendingPlans: state.monthlySpendingPlans ?? [],
@@ -709,6 +774,8 @@ export const useAppStore = create<AppState>()(
         profile: state.profile,
         wallets: state.wallets,
         categories: state.categories,
+        tags: state.tags,
+        expenseTags: state.expenseTags,
         transactions: state.transactions,
         budgets: state.budgets,
         monthlySpendingPlans: state.monthlySpendingPlans,

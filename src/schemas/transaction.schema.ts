@@ -11,6 +11,7 @@ export const transactionFormSchema = z.object({
     .regex(/^\d+(\.\d{1,3})?$/, "Use a valid amount with supported decimals."),
   walletId: z.string().min(1, "Choose a wallet."),
   categoryId: z.string().min(1, "Choose a category."),
+  tagIds: z.array(z.string()).default([]),
   merchant: z.string().max(80).optional(),
   note: z.string().max(180).optional(),
   occurredAt: z.string().min(1)

@@ -71,6 +71,11 @@ const renderAddTabButton = (props: unknown) => {
   return <Pressable {...pressableProps} hitSlop={{ top: 42, bottom: 12, left: 14, right: 14 }} />;
 };
 
+const hiddenTabOptions = {
+  href: null,
+  tabBarItemStyle: { display: "none" as const }
+};
+
 export default function TabsLayout() {
   const theme = useAppTheme();
   const { t } = useTranslation();
@@ -127,6 +132,13 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="calendar/index"
+          options={{
+            title: t("tabs.calendar"),
+            tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon="calendar-outline" label={t("tabs.calendar")} />
+          }}
+        />
+        <Tabs.Screen
           name="add"
           options={{
             title: t("tabs.add"),
@@ -150,6 +162,11 @@ export default function TabsLayout() {
             tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon="bar-chart-outline" label={t("tabs.reports")} />
           }}
         />
+        <Tabs.Screen name="categories/index" options={hiddenTabOptions} />
+        <Tabs.Screen name="categories/new" options={hiddenTabOptions} />
+        <Tabs.Screen name="categories/[id]/edit" options={hiddenTabOptions} />
+        <Tabs.Screen name="tags/index" options={hiddenTabOptions} />
+        <Tabs.Screen name="search/index" options={hiddenTabOptions} />
       </Tabs>
     </PrivateRouteGate>
   );
@@ -157,7 +174,7 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabItem: {
-    width: 58,
+    width: 52,
     height: 62,
     borderRadius: 16,
     alignItems: "center",
@@ -172,15 +189,15 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   addItem: {
-    width: 72,
+    width: 62,
     height: 68,
     alignItems: "center",
     justifyContent: "flex-start",
     gap: 0
   },
   addButton: {
-    width: 64,
-    height: 64,
+    width: 58,
+    height: 58,
     marginTop: -26,
     borderRadius: 32,
     alignItems: "center",

@@ -91,6 +91,22 @@ export interface Category extends BaseEntity {
   color: string;
   parentId?: string | null;
   isSystem: boolean;
+  isArchived?: boolean;
+  isDefault?: boolean;
+}
+
+export interface Tag extends BaseEntity {
+  ownerId: string;
+  name: string;
+  color: string;
+  isArchived?: boolean;
+}
+
+export interface ExpenseTag {
+  expenseId: string;
+  tagId: string;
+  createdAt: string;
+  createdBy: string;
 }
 
 export interface Transaction extends BaseEntity {

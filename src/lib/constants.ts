@@ -51,6 +51,8 @@ export const createSystemCategories = (ownerId: string, now: string): Category[]
       "#6B7280"
     ][index] ?? "#6B7280",
     isSystem: true,
+    isDefault: true,
+    isArchived: false,
     createdAt: now,
     updatedAt: now,
     createdBy: ownerId
@@ -62,8 +64,10 @@ export const createSystemCategories = (ownerId: string, now: string): Category[]
     name: "Income",
     kind: "income",
     icon: "briefcase",
-    color: "#10B981",
-    isSystem: true,
+  color: "#10B981",
+  isSystem: true,
+  isDefault: true,
+  isArchived: false,
     createdAt: now,
     updatedAt: now,
     createdBy: ownerId
