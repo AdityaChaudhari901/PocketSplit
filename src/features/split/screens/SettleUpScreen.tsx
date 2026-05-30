@@ -15,7 +15,8 @@ export const SettleUpScreen = () => {
   const router = useRouter();
   const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const state = useAppStore();
-  const group = state.groups.find((item) => item.id === groupId) ?? state.groups[0];
+  const activeGroups = state.groups.filter((item) => !item.deletedAt);
+  const group = activeGroups.find((item) => item.id === groupId) ?? activeGroups[0];
 
   if (!group) {
     return (

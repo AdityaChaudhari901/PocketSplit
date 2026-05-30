@@ -15,7 +15,7 @@ import { useAppStore } from "@/store/app.store";
 export const SmartReceiptSplitScreen = () => {
   const router = useRouter();
   const state = useAppStore();
-  const group = state.groups[0];
+  const group = state.groups.find((item) => !item.deletedAt);
   const canUse = canUseFeature(state.entitlement, "advanced_split");
   const demoItems = [
     { label: "Paneer Pizza", amountMinor: 48000, members: ["Rahul", "Amit", "Priya"] },

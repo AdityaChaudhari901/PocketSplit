@@ -28,6 +28,12 @@ export interface SplitValidationResult {
   splits: GroupExpenseSplit[];
 }
 
+export const isActiveSplitMember = (member: SplitMember): boolean => !member.deletedAt;
+
+export const getActiveSplitMembers = (members: SplitMember[]): SplitMember[] => members.filter(isActiveSplitMember);
+
+export const hasMinimumSplitMembers = (members: SplitMember[]): boolean => getActiveSplitMembers(members).length >= 2;
+
 const distributeRemainder = (amountMinor: number, memberIds: string[]): GroupExpenseSplit[] => {
   const base = Math.floor(amountMinor / memberIds.length);
   let remainder = amountMinor - base * memberIds.length;

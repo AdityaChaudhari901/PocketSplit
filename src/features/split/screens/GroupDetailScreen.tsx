@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MoneyAmount } from "@/components/ui/MoneyAmount";
 import { Screen } from "@/components/ui/Screen";
+import { getActiveSplitMembers, hasMinimumSplitMembers } from "@/lib/split";
 import { radius, spacing, useAppTheme } from "@/lib/theme";
 import { useAppStore } from "@/store/app.store";
 
@@ -20,7 +21,8 @@ export const GroupDetailScreen = () => {
   const router = useRouter();
   const theme = useAppTheme();
   const state = useAppStore();
-  const group = state.groups.find((item) => item.id === id);
+  const deleteGroup = useAppStore((store) => store.deleteGroup);
+  const group = state.groups.find((item) => item.id === id && !item.deletedAt);
   const [exportVisible, setExportVisible] = useState(false);
 
   if (!group) {
@@ -33,6 +35,9 @@ export const GroupDetailScreen = () => {
 
   const expenses = state.getGroupExpenses(group.id);
   const balances = state.getGroupBalances(group.id);
+  const activeMembers = getActiveSplitMembers(group.members);
+  const canAddExpense = hasMinimumSplitMembers(group.members);
+  const activeMemberLabel = activeMembers.length === 1 ? "active member" : "active members";
   const currentMember = group.members.find((member) => member.isCurrentUser) ?? group.members[0];
   const currentBalance = balances.find((balance) => balance.memberId === currentMember?.id)?.netMinor ?? 0;
   const totalSpentMinor = expenses.reduce((total, expense) => total + expense.amountMinor, 0);
@@ -51,21 +56,53 @@ export const GroupDetailScreen = () => {
     }
   };
 
+  const openAddExpense = () => {
+    if (!canAddExpense) {
+      Alert.alert("Add members first", "Add at least one more member before creating a split expense.");
+      return;
+    }
+
+    router.push(`/modals/add-split-expense?groupId=${group.id}`);
+  };
+
+  const confirmDeleteGroup = () => {
+    Alert.alert("Delete group?", `${group.name} will be removed from your split groups. Existing records are kept safely in local history.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          deleteGroup(group.id);
+          router.replace("/split");
+        }
+      }
+    ]);
+  };
+
   return (
     <Screen>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <AppText variant="hero">{group.name}</AppText>
           <AppText muted>
-            {group.members.length} members • {new Intl.NumberFormat("en-IN", { style: "currency", currency: group.currency }).format(totalSpentMinor / 100)} total spent
+            {activeMembers.length} {activeMembers.length === 1 ? "member" : "members"} • {new Intl.NumberFormat("en-IN", { style: "currency", currency: group.currency }).format(totalSpentMinor / 100)} total spent
           </AppText>
         </View>
         <MemberAvatarStack members={group.members} />
       </View>
 
-      <Card style={styles.card}>
-        <View style={styles.metrics}>
-          <View>
+      <View style={styles.manageActions}>
+        <Button variant="secondary" size="compact" icon="create-outline" onPress={() => router.push(`/modals/edit-group/${group.id}`)}>
+          Edit group
+        </Button>
+        <Button variant="danger" size="compact" icon="trash-outline" onPress={confirmDeleteGroup}>
+          Delete
+        </Button>
+      </View>
+
+      <Card style={styles.summaryCard}>
+        <View style={styles.metricRow}>
+          <View style={styles.metricBlock}>
             <AppText variant="caption" muted>
               Your net balance
             </AppText>
@@ -74,56 +111,74 @@ export const GroupDetailScreen = () => {
               {currentBalance >= 0 ? "You are owed" : "You owe"}
             </AppText>
           </View>
-          <View>
+          <View style={styles.metricBlock}>
             <AppText variant="caption" muted>
               Paid by you
             </AppText>
             <MoneyAmount amountMinor={paidByUser} currency={group.currency} />
-          </View>
-        </View>
-        <View style={styles.actions}>
-          <Button onPress={() => router.push(`/modals/add-split-expense?groupId=${group.id}`)} icon="add">
-            Add Expense
-          </Button>
-          <Button onPress={() => router.push("/modals/receipt-scanner")} variant="secondary" icon="scan">
-            Scan Receipt
-          </Button>
-          <Button onPress={() => router.push(`/modals/settle-up?groupId=${group.id}`)} variant="secondary" icon="swap-horizontal">
-            Settle Up
-          </Button>
-          <Button onPress={() => setExportVisible(true)} variant="secondary" icon="share-outline">
-            Export
-          </Button>
-        </View>
-      </Card>
-
-      <Card style={styles.card}>
-        <View style={styles.inviteHeader}>
-          <View style={[styles.inviteIcon, { backgroundColor: theme.colors.primarySoft }]}>
-            <Ionicons name="person-add-outline" size={22} color={theme.colors.primary} />
-          </View>
-          <View style={styles.headerCopy}>
-            <AppText variant="subtitle">Invite members</AppText>
             <AppText variant="caption" muted>
-              Add contacts or share the group invite link.
+              Across this group
             </AppText>
           </View>
         </View>
-        <View style={styles.actions}>
-          <Button onPress={() => router.push(`/modals/add-group-members?groupId=${group.id}`)} variant="secondary" icon="person-add-outline">
-            Add members
-          </Button>
-          <Button onPress={shareInviteLink} variant="secondary" icon="link-outline">
-            Share link
-          </Button>
-        </View>
-        <View style={[styles.inviteLink, { backgroundColor: theme.colors.surfaceMuted, borderColor: theme.colors.border }]}>
-          <Ionicons name="link-outline" size={17} color={theme.colors.primary} />
-          <AppText variant="caption" muted numberOfLines={1}>
-            {inviteLink}
-          </AppText>
-        </View>
+        {canAddExpense ? (
+          <View style={styles.actionGrid}>
+            <Button onPress={openAddExpense} icon="add">
+              Add bill
+            </Button>
+            <Button onPress={() => router.push(`/modals/settle-up?groupId=${group.id}`)} variant="secondary" icon="swap-horizontal">
+              Settle up
+            </Button>
+            <Button onPress={() => setExportVisible(true)} variant="secondary" icon="share-outline">
+              Export
+            </Button>
+          </View>
+        ) : null}
       </Card>
+
+      {!canAddExpense ? (
+        <Card style={[styles.nudgeCard, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primaryBorder }]}>
+          <View style={[styles.inviteIcon, { backgroundColor: theme.colors.surface }]}>
+            <Ionicons name="person-add-outline" size={22} color={theme.colors.primary} />
+          </View>
+          <View style={styles.nudgeCopy}>
+            <AppText variant="subtitle">Add members to start splitting</AppText>
+            <AppText variant="caption" muted>
+              This group has {activeMembers.length} {activeMemberLabel}. Add one more person or contact before adding shared expenses.
+            </AppText>
+          </View>
+          <View style={styles.inlineActions}>
+            <Button onPress={() => router.push(`/modals/add-group-members?groupId=${group.id}`)} variant="secondary" size="compact" icon="person-add-outline">
+              Add members
+            </Button>
+            <Button onPress={shareInviteLink} size="compact" variant="secondary" icon="link-outline">
+              Share link
+            </Button>
+          </View>
+        </Card>
+      ) : null}
+
+      {canAddExpense ? (
+        <Card style={styles.card}>
+          <View style={styles.membersHeader}>
+            <View style={styles.headerCopy}>
+              <AppText variant="subtitle">Members</AppText>
+              <AppText variant="caption" muted>
+                {activeMembers.length} active members. Add contacts manually until invite join is ready.
+              </AppText>
+            </View>
+            <MemberAvatarStack members={activeMembers} />
+          </View>
+          <View style={styles.inlineActions}>
+            <Button onPress={() => router.push(`/modals/add-group-members?groupId=${group.id}`)} variant="secondary" icon="person-add-outline">
+              Add members
+            </Button>
+            <Button onPress={shareInviteLink} variant="secondary" icon="link-outline">
+              Share link
+            </Button>
+          </View>
+        </Card>
+      ) : null}
 
       <Card style={styles.card}>
         <AppText variant="subtitle">Balances</AppText>
@@ -142,31 +197,18 @@ export const GroupDetailScreen = () => {
         {expenses.length > 0 ? (
           expenses.map((expense) => (
             <View key={expense.id} style={styles.timelineRow}>
-              <View>
+              <View style={styles.timelineCopy}>
                 <AppText>{expense.title}</AppText>
                 <AppText variant="caption" muted>
-                  Paid by {group.members.find((member) => member.id === expense.paidByMemberId)?.displayName ?? "Unknown"} • v{expense.version}
+                  Paid by {group.members.find((member) => member.id === expense.paidByMemberId)?.displayName ?? "Unknown"} • {new Date(expense.occurredAt).toLocaleDateString()}
                 </AppText>
               </View>
               <MoneyAmount amountMinor={expense.amountMinor} currency={expense.currency} size="body" />
             </View>
           ))
         ) : (
-          <EmptyState icon="receipt" title="No group expenses" body="Add a shared expense or scan a receipt to start the timeline." />
+          <EmptyState icon="receipt" title="No group expenses" body="Add a shared expense to start the timeline." />
         )}
-      </Card>
-
-      <Card style={styles.card}>
-        <AppText variant="subtitle">Activity log</AppText>
-        {state.activityLogs
-          .filter((log) => log.groupId === group.id)
-          .slice(0, 5)
-          .map((log) => (
-            <AppText key={log.id} muted>
-              {log.action} {log.entityType} on {log.createdAt.slice(0, 10)}
-            </AppText>
-          ))}
-        {state.activityLogs.filter((log) => log.groupId === group.id).length === 0 ? <AppText muted>No activity yet.</AppText> : null}
       </Card>
 
       <ExportSheet
@@ -195,15 +237,37 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.md
   },
-  metrics: {
+  manageActions: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  summaryCard: {
     gap: spacing.lg
+  },
+  metricRow: {
+    flexDirection: "row",
+    gap: spacing.md
+  },
+  metricBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs
   },
   actions: {
     gap: spacing.md
   },
-  inviteHeader: {
+  actionGrid: {
+    gap: spacing.sm
+  },
+  inlineActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  membersHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.md
   },
   inviteIcon: {
@@ -213,14 +277,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  inviteLink: {
-    minHeight: 42,
-    borderRadius: radius.md,
+  nudgeCard: {
     borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md
+    gap: spacing.md
+  },
+  nudgeCopy: {
+    gap: spacing.xs
+  },
+  timelineCopy: {
+    flex: 1,
+    minWidth: 0
   },
   timelineRow: {
     minHeight: 54,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateExpenseShares, calculateGroupBalances, simplifySettlements, validateSplit } from "@/lib/split";
+import { calculateExpenseShares, calculateGroupBalances, hasMinimumSplitMembers, simplifySettlements, validateSplit } from "@/lib/split";
 import { createSplitExpense } from "@/services/split.service";
 import type { GroupExpense, SplitMember } from "@/types/domain";
 
@@ -19,6 +19,11 @@ describe("split utilities", () => {
       { memberId: "priya", amountMinor: 100000 },
       { memberId: "neha", amountMinor: 100000 }
     ]);
+  });
+
+  it("counts placeholder members as active and removed members as inactive", () => {
+    expect(hasMinimumSplitMembers([members[0]!, { id: "placeholder", displayName: "Phone contact", role: "member" }])).toBe(true);
+    expect(hasMinimumSplitMembers([members[0]!, { id: "removed", displayName: "Removed", role: "member", deletedAt: "2026-05-01T00:00:00.000Z" }])).toBe(false);
   });
 
   it("rejects percentage splits that do not total 100 percent", () => {

@@ -138,6 +138,8 @@ export interface AppState {
   updateSavingsGoalStatus: (goalId: string, status: SavingsGoalStatus) => void;
   addReceipt: (receipt: Receipt) => void;
   addGroup: (group: SplitGroup) => void;
+  updateGroup: (groupId: string, data: Pick<SplitGroup, "name" | "description">) => void;
+  deleteGroup: (groupId: string) => void;
   addGroupMembers: (groupId: string, members: SplitMember[]) => void;
   addGroupExpense: (expense: GroupExpense) => void;
   addSettlement: (settlement: Settlement) => void;
@@ -626,9 +628,83 @@ export const useAppStore = create<AppState>()(
           groups: [group, ...state.groups],
           entitlement: consumeUsage(state.entitlement, "split_group")
         })),
+      updateGroup: (groupId, data) =>
+        set((state) => {
+          const group = state.groups.find((item) => item.id === groupId && !item.deletedAt);
+          if (!group) {
+            return {};
+          }
+
+          const now = new Date().toISOString();
+          return {
+            groups: state.groups.map((item) =>
+              item.id === groupId
+                ? {
+                    ...item,
+                    name: data.name.trim(),
+                    description: data.description?.trim() ? data.description.trim() : null,
+                    updatedAt: now,
+                    updatedBy: state.profile.id
+                  }
+                : item
+            ),
+            activityLogs: [
+              {
+                id: `log-${Date.now()}`,
+                actorId: state.profile.id,
+                groupId,
+                entityType: "split_group",
+                entityId: groupId,
+                action: "updated",
+                before: { name: group.name, description: group.description },
+                after: { name: data.name.trim(), description: data.description?.trim() ? data.description.trim() : null },
+                createdAt: now,
+                updatedAt: now,
+                createdBy: state.profile.id
+              },
+              ...state.activityLogs
+            ]
+          };
+        }),
+      deleteGroup: (groupId) =>
+        set((state) => {
+          const group = state.groups.find((item) => item.id === groupId && !item.deletedAt);
+          if (!group) {
+            return {};
+          }
+
+          const now = new Date().toISOString();
+          return {
+            groups: state.groups.map((item) =>
+              item.id === groupId
+                ? {
+                    ...item,
+                    deletedAt: now,
+                    updatedAt: now,
+                    updatedBy: state.profile.id
+                  }
+                : item
+            ),
+            activityLogs: [
+              {
+                id: `log-${Date.now()}`,
+                actorId: state.profile.id,
+                groupId,
+                entityType: "split_group",
+                entityId: groupId,
+                action: "deleted",
+                before: { name: group.name },
+                createdAt: now,
+                updatedAt: now,
+                createdBy: state.profile.id
+              },
+              ...state.activityLogs
+            ]
+          };
+        }),
       addGroupMembers: (groupId, members) =>
         set((state) => {
-          const group = state.groups.find((item) => item.id === groupId);
+          const group = state.groups.find((item) => item.id === groupId && !item.deletedAt);
           if (!group || members.length === 0) {
             return {};
           }
@@ -747,7 +823,7 @@ export const useAppStore = create<AppState>()(
       getUpcomingBills: (horizonDays = 30) => getUpcomingBills(get().recurringBills, { horizonDays }),
       getGroupExpenses: (groupId) => get().groupExpenses.filter((expense) => expense.groupId === groupId && !expense.deletedAt),
       getGroupBalances: (groupId) => {
-        const group = get().groups.find((item) => item.id === groupId);
+        const group = get().groups.find((item) => item.id === groupId && !item.deletedAt);
         if (!group) {
           return [];
         }

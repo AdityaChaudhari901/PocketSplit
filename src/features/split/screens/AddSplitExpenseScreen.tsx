@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { MoneyAmount } from "@/components/ui/MoneyAmount";
 import { Screen } from "@/components/ui/Screen";
 import { TextField } from "@/components/ui/TextField";
-import { type SplitDraft, validateSplit } from "@/lib/split";
+import { getActiveSplitMembers, hasMinimumSplitMembers, type SplitDraft, validateSplit } from "@/lib/split";
 import { radius, spacing, useAppTheme } from "@/lib/theme";
 import { majorToMinor, minorToMajorInput } from "@/schemas/transaction.schema";
 import { canUseFeature } from "@/services/entitlement.service";
@@ -147,11 +147,12 @@ export const AddSplitExpenseScreen = () => {
   const theme = useAppTheme();
   const state = useAppStore();
   const addGroupExpense = useAppStore((store) => store.addGroupExpense);
-  const group = state.groups.find((item) => item.id === groupId) ?? state.groups[0];
-  const activeMembers = useMemo(() => group?.members.filter((member) => !member.deletedAt) ?? [], [group?.members]);
+  const activeGroups = state.groups.filter((item) => !item.deletedAt);
+  const group = activeGroups.find((item) => item.id === groupId) ?? activeGroups[0];
+  const activeMembers = useMemo(() => getActiveSplitMembers(group?.members ?? []), [group?.members]);
   const activeMemberIds = useMemo(() => activeMembers.map((member) => member.id), [activeMembers]);
-  const [title, setTitle] = useState("Hotel");
-  const [amount, setAmount] = useState("4000");
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<SplitMethod>("equal");
   const [paidByMemberId, setPaidByMemberId] = useState(group?.members[0]?.id ?? "");
   const [splitInputs, setSplitInputs] = useState<Record<string, SplitInput>>({});
@@ -195,7 +196,9 @@ export const AddSplitExpenseScreen = () => {
   );
 
   const allocatedMinor = validation.splits.reduce((total, split) => total + split.amountMinor, 0);
-  const canSave = Boolean(group && title.trim().length >= 2 && paidByMemberId && canUseAdvancedSplit && validation.valid);
+  const canStartSplit = Boolean(group && hasMinimumSplitMembers(group.members));
+  const shouldShowPreview = canStartSplit && amountMinor > 0;
+  const canSave = Boolean(group && canStartSplit && title.trim().length >= 2 && paidByMemberId && canUseAdvancedSplit && validation.valid);
 
   const updateMemberInput = (memberId: string, patch: Partial<SplitInput>) => {
     setSplitInputs((current) => ({
@@ -247,6 +250,11 @@ export const AddSplitExpenseScreen = () => {
       return;
     }
 
+    if (!canStartSplit) {
+      Alert.alert("Add members first", "Add at least one more member before creating a split expense.");
+      return;
+    }
+
     if (!canUseFeature(state.entitlement, "group_expense")) {
       Alert.alert("Group expense limit reached", "Upgrade for unlimited group expenses.");
       return;
@@ -284,156 +292,177 @@ export const AddSplitExpenseScreen = () => {
   return (
     <Screen>
       <View>
-        <AppText variant="hero">Add split expense</AppText>
-        <AppText muted>Choose who paid, who participated, and how the bill should be divided.</AppText>
+        <AppText variant="hero">Add bill</AppText>
+        <AppText muted>Enter the bill, choose who paid, then split it.</AppText>
       </View>
 
       {!canUseAdvancedSplit ? (
         <PaywallCard title="Advanced splits are Premium" body="Equal split is available now. Upgrade for exact, percentage, shares, item-wise, and custom splits." />
       ) : null}
 
-      <Card style={styles.form}>
-        <TextField label="Title" value={title} onChangeText={setTitle} />
-        <TextField label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
-
-        <AppText variant="label" muted>
-          Paid by
-        </AppText>
-        <View style={styles.pills}>
-          {activeMembers.map((member) => (
-            <CategoryPill key={member.id} label={member.displayName} selected={paidByMemberId === member.id} onPress={() => setPaidByMemberId(member.id)} />
-          ))}
-        </View>
-
-        <AppText variant="label" muted>
-          Participants
-        </AppText>
-        <View style={styles.memberGrid}>
-          {activeMembers.map((member) => {
-            const included = splitInputs[member.id]?.included ?? true;
-            return (
-              <Pressable
-                key={member.id}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: included }}
-                onPress={() => updateMemberInput(member.id, { included: !included })}
-                style={({ pressed }) => [
-                  styles.memberToggle,
-                  {
-                    backgroundColor: included ? theme.colors.primarySoft : theme.colors.surfaceMuted,
-                    borderColor: included ? theme.colors.primaryBorder : theme.colors.border
-                  },
-                  pressed ? styles.pressed : null
-                ]}
-              >
-                <Ionicons name={included ? "checkmark-circle" : "ellipse-outline"} size={18} color={included ? theme.colors.primary : theme.colors.subtext} />
-                <AppText variant="caption" style={{ color: included ? theme.colors.primary : theme.colors.subtext }}>
-                  {member.displayName}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.sectionLine}>
-          <View style={styles.sectionCopy}>
-            <AppText variant="label" muted>
-              Split method
-            </AppText>
-            <AppText variant="caption" muted>
-              {METHODS.find((item) => item.value === method)?.body}
-            </AppText>
-          </View>
-          {method !== "equal" ? (
-            <Button size="compact" variant="secondary" onPress={() => autofillDetails()} icon="sparkles-outline">
-              Auto-fill
+      {!canStartSplit ? (
+        <Card style={styles.form}>
+          <AppText variant="subtitle">Add members before splitting</AppText>
+          <AppText muted>A split expense needs at least two active members. Placeholder contacts count, removed members do not.</AppText>
+          {group ? (
+            <Button onPress={() => router.replace(`/modals/add-group-members?groupId=${group.id}&next=split`)} icon="person-add-outline">
+              Add members
             </Button>
-          ) : null}
-        </View>
-        <View style={styles.pills}>
-          {METHODS.map((item) => (
-            <CategoryPill key={item.value} label={item.label} selected={method === item.value} onPress={() => selectMethod(item.value)} />
-          ))}
-        </View>
+          ) : (
+            <Button onPress={() => router.replace("/modals/create-group")} icon="people-outline">
+              Create group
+            </Button>
+          )}
+        </Card>
+      ) : null}
 
-        {method !== "equal" ? (
-          <View style={styles.splitDetails}>
-            {includedMembers.map((member) => {
-              const input = splitInputs[member.id] ?? createDefaultInput();
-              const value =
-                method === "percentage" ? input.percentage : method === "shares" ? input.shares : input.amountMajor;
-              const onChangeText =
-                method === "percentage"
-                  ? (percentage: string) => updateMemberInput(member.id, { percentage })
-                  : method === "shares"
-                    ? (shares: string) => updateMemberInput(member.id, { shares })
-                    : (amountMajor: string) => updateMemberInput(member.id, { amountMajor });
+      {canStartSplit ? (
+        <Card style={styles.form}>
+          <TextField label="Title" value={title} onChangeText={setTitle} placeholder="Dinner, hotel, groceries..." />
+          <TextField label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" />
+
+          <AppText variant="label" muted>
+            Paid by
+          </AppText>
+          <View style={styles.pills}>
+            {activeMembers.map((member) => (
+              <CategoryPill key={member.id} label={member.displayName} selected={paidByMemberId === member.id} onPress={() => setPaidByMemberId(member.id)} />
+            ))}
+          </View>
+
+          <AppText variant="label" muted>
+            Participants
+          </AppText>
+          <View style={styles.memberGrid}>
+            {activeMembers.map((member) => {
+              const included = splitInputs[member.id]?.included ?? true;
               return (
-                <View key={member.id} style={[styles.detailRow, { borderColor: theme.colors.border }]}>
-                  <View style={styles.detailCopy}>
-                    <AppText>{member.displayName}</AppText>
-                    <AppText variant="caption" muted>
-                      {valueLabel(method)}
-                    </AppText>
-                  </View>
-                  <View style={styles.detailInput}>
-                    <TextField
-                      label={valueLabel(method)}
-                      value={value}
-                      onChangeText={onChangeText}
-                      keyboardType={method === "shares" ? "number-pad" : "decimal-pad"}
-                      placeholder={method === "percentage" ? "25" : method === "shares" ? "1" : "0"}
-                    />
-                  </View>
-                </View>
+                <Pressable
+                  key={member.id}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: included }}
+                  onPress={() => updateMemberInput(member.id, { included: !included })}
+                  style={({ pressed }) => [
+                    styles.memberToggle,
+                    {
+                      backgroundColor: included ? theme.colors.primarySoft : theme.colors.surfaceMuted,
+                      borderColor: included ? theme.colors.primaryBorder : theme.colors.border
+                    },
+                    pressed ? styles.pressed : null
+                  ]}
+                >
+                  <Ionicons name={included ? "checkmark-circle" : "ellipse-outline"} size={18} color={included ? theme.colors.primary : theme.colors.subtext} />
+                  <AppText variant="caption" style={{ color: included ? theme.colors.primary : theme.colors.subtext }}>
+                    {member.displayName}
+                  </AppText>
+                </Pressable>
               );
             })}
           </View>
-        ) : null}
-      </Card>
 
-      <Card style={styles.previewCard}>
-        <View style={styles.previewHeader}>
-          <View>
-            <AppText variant="subtitle">Split preview</AppText>
-            <AppText variant="caption" muted>
-              {methodLabel(method)} across {includedMembers.length} members
-            </AppText>
-          </View>
-          {group ? <MoneyAmount amountMinor={amountMinor} currency={group.currency} size="subtitle" /> : null}
-        </View>
-
-        <View style={styles.previewTotal}>
-          <AppText variant="caption" muted>
-            Allocated
-          </AppText>
-          {group ? <MoneyAmount amountMinor={allocatedMinor} currency={group.currency} size="body" /> : null}
-        </View>
-
-        {validation.splits.map((split) => {
-          const member = activeMembers.find((item) => item.id === split.memberId);
-          return (
-            <View key={split.memberId} style={styles.previewRow}>
-              <AppText>{member?.displayName ?? "Unknown member"}</AppText>
-              {group ? <MoneyAmount amountMinor={split.amountMinor} currency={group.currency} size="body" /> : null}
-            </View>
-          );
-        })}
-
-        {validation.errors.length > 0 ? (
-          <View style={[styles.errorBox, { backgroundColor: theme.colors.dangerSoft, borderColor: theme.colors.dangerBorder }]}>
-            {validation.errors.map((error) => (
-              <AppText key={error} variant="caption" style={{ color: theme.colors.danger }}>
-                {error}
+          <View style={styles.sectionLine}>
+            <View style={styles.sectionCopy}>
+              <AppText variant="label" muted>
+                Split method
               </AppText>
+              <AppText variant="caption" muted>
+                {METHODS.find((item) => item.value === method)?.body}
+              </AppText>
+            </View>
+            {method !== "equal" ? (
+              <Button size="compact" variant="secondary" onPress={() => autofillDetails()} icon="sparkles-outline">
+                Auto-fill
+              </Button>
+            ) : null}
+          </View>
+          <View style={styles.pills}>
+            {METHODS.map((item) => (
+              <CategoryPill key={item.value} label={item.label} selected={method === item.value} onPress={() => selectMethod(item.value)} />
             ))}
           </View>
-        ) : null}
-      </Card>
 
-      <Button disabled={!canSave} onPress={save} icon="checkmark-circle">
-        Save split expense
-      </Button>
+          {method !== "equal" ? (
+            <View style={styles.splitDetails}>
+              {includedMembers.map((member) => {
+                const input = splitInputs[member.id] ?? createDefaultInput();
+                const value = method === "percentage" ? input.percentage : method === "shares" ? input.shares : input.amountMajor;
+                const onChangeText =
+                  method === "percentage"
+                    ? (percentage: string) => updateMemberInput(member.id, { percentage })
+                    : method === "shares"
+                      ? (shares: string) => updateMemberInput(member.id, { shares })
+                      : (amountMajor: string) => updateMemberInput(member.id, { amountMajor });
+                return (
+                  <View key={member.id} style={[styles.detailRow, { borderColor: theme.colors.border }]}>
+                    <View style={styles.detailCopy}>
+                      <AppText>{member.displayName}</AppText>
+                      <AppText variant="caption" muted>
+                        {valueLabel(method)}
+                      </AppText>
+                    </View>
+                    <View style={styles.detailInput}>
+                      <TextField
+                        label={valueLabel(method)}
+                        value={value}
+                        onChangeText={onChangeText}
+                        keyboardType={method === "shares" ? "number-pad" : "decimal-pad"}
+                        placeholder={method === "percentage" ? "25" : method === "shares" ? "1" : "0"}
+                      />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {shouldShowPreview ? (
+        <Card style={styles.previewCard}>
+          <View style={styles.previewHeader}>
+            <View>
+              <AppText variant="subtitle">Split preview</AppText>
+              <AppText variant="caption" muted>
+                {methodLabel(method)} across {includedMembers.length} members
+              </AppText>
+            </View>
+            {group ? <MoneyAmount amountMinor={amountMinor} currency={group.currency} size="subtitle" /> : null}
+          </View>
+
+          <View style={styles.previewTotal}>
+            <AppText variant="caption" muted>
+              Allocated
+            </AppText>
+            {group ? <MoneyAmount amountMinor={allocatedMinor} currency={group.currency} size="body" /> : null}
+          </View>
+
+          {validation.splits.map((split) => {
+            const member = activeMembers.find((item) => item.id === split.memberId);
+            return (
+              <View key={split.memberId} style={styles.previewRow}>
+                <AppText>{member?.displayName ?? "Unknown member"}</AppText>
+                {group ? <MoneyAmount amountMinor={split.amountMinor} currency={group.currency} size="body" /> : null}
+              </View>
+            );
+          })}
+
+          {validation.errors.length > 0 ? (
+            <View style={[styles.errorBox, { backgroundColor: theme.colors.dangerSoft, borderColor: theme.colors.dangerBorder }]}>
+              {validation.errors.map((error) => (
+                <AppText key={error} variant="caption" style={{ color: theme.colors.danger }}>
+                  {error}
+                </AppText>
+              ))}
+            </View>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {canStartSplit ? (
+        <Button disabled={!canSave} onPress={save} icon="checkmark-circle">
+          Save split expense
+        </Button>
+      ) : null}
     </Screen>
   );
 };

@@ -9,6 +9,7 @@ import { AppText } from "@/components/ui/AppText";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/ui/Screen";
 import { TextField } from "@/components/ui/TextField";
+import { useGroupInviteDraftStore } from "@/features/split/groupInviteDraftStore";
 import { radius, spacing, useAppTheme } from "@/lib/theme";
 import { majorToMinor } from "@/schemas/transaction.schema";
 import { createGroupSchema, type CreateGroupValues } from "@/schemas/split.schema";
@@ -21,6 +22,7 @@ export const CreateGroupScreen = () => {
   const theme = useAppTheme();
   const state = useAppStore();
   const addGroup = useAppStore((store) => store.addGroup);
+  const clearInviteDraft = useGroupInviteDraftStore((store) => store.clearMembers);
   const {
     control,
     handleSubmit,
@@ -68,7 +70,8 @@ export const CreateGroupScreen = () => {
       createdBy: state.profile.id,
       updatedBy: state.profile.id
     });
-    router.replace(`/modals/group-detail/${groupId}`);
+    clearInviteDraft();
+    router.replace(`/modals/add-group-members?groupId=${groupId}&next=split`);
   });
 
   const canCreateGroup = canUseFeature(state.entitlement, "split_group");
@@ -77,7 +80,7 @@ export const CreateGroupScreen = () => {
     <Screen contentStyle={styles.screenContent}>
       <View>
         <AppText variant="hero">Create group</AppText>
-        <AppText muted>Start with the group details. Invites unlock after the group exists.</AppText>
+        <AppText muted>Create the group first, then add members and split the first bill.</AppText>
       </View>
 
       <Card style={styles.form}>
@@ -102,25 +105,6 @@ export const CreateGroupScreen = () => {
         />
       </Card>
 
-      <Card style={styles.invitePreview}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.lockIcon, { backgroundColor: theme.colors.primarySoft }]}>
-            <Ionicons name="lock-closed-outline" size={20} color={theme.colors.primary} />
-          </View>
-          <View style={styles.cardHeaderCopy}>
-            <AppText variant="subtitle">Invite members</AppText>
-            <AppText variant="caption" muted>
-              Add members and share the invite link after the group is created.
-            </AppText>
-          </View>
-        </View>
-
-        <View style={styles.inviteRows}>
-          <LockedInviteRow icon="person-add-outline" title="Add members" body="Friends and phone contacts" />
-          <LockedInviteRow icon="link-outline" title="Share link" body="Group invite URL" />
-        </View>
-      </Card>
-
       {!canCreateGroup ? (
         <Card style={styles.limitCard}>
           <AppText variant="subtitle">Group limit reached</AppText>
@@ -130,30 +114,6 @@ export const CreateGroupScreen = () => {
 
       <CreateGroupButton disabled={!canCreateGroup || isSubmitting} loading={isSubmitting} onPress={onSubmit} />
     </Screen>
-  );
-};
-
-const LockedInviteRow = ({ icon, title, body }: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string }) => {
-  const theme = useAppTheme();
-  return (
-    <View style={[styles.lockedRow, { backgroundColor: theme.colors.surfaceMuted, borderColor: theme.colors.border }]}>
-      <View style={[styles.rowIcon, { backgroundColor: theme.colors.surface }]}>
-        <Ionicons name={icon} size={20} color={theme.colors.subtext} />
-      </View>
-      <View style={styles.rowCopy}>
-        <AppText variant="caption" style={styles.rowTitle}>
-          {title}
-        </AppText>
-        <AppText variant="caption" muted numberOfLines={1}>
-          {body}
-        </AppText>
-      </View>
-      <View style={[styles.afterCreateBadge, { backgroundColor: theme.colors.surface }]}>
-        <AppText variant="caption" muted>
-          After create
-        </AppText>
-      </View>
-    </View>
   );
 };
 
@@ -175,7 +135,7 @@ const CreateGroupButton = ({ disabled, loading, onPress }: { disabled?: boolean;
             {loading ? "Creating group..." : "Create group"}
           </AppText>
           <AppText variant="caption" style={{ color: theme.colors.onPrimary }} numberOfLines={1}>
-            Invites and member actions open next
+            Add members next
           </AppText>
         </View>
         <Ionicons name="arrow-forward" size={22} color={theme.colors.onPrimary} />
@@ -199,48 +159,6 @@ const styles = StyleSheet.create({
   cardHeaderCopy: {
     flex: 1,
     gap: spacing.xs
-  },
-  invitePreview: {
-    gap: spacing.md
-  },
-  lockIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  inviteRows: {
-    gap: spacing.sm
-  },
-  lockedRow: {
-    minHeight: 72,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md
-  },
-  rowIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  rowCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: spacing.xs
-  },
-  rowTitle: {
-    fontWeight: "800"
-  },
-  afterCreateBadge: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs
   },
   limitCard: {
     gap: spacing.xs

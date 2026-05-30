@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Contacts from "expo-contacts";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, View } from "react-native";
 
 import { AppText } from "@/components/ui/AppText";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +16,7 @@ import { useAppStore } from "@/store/app.store";
 import type { SplitMember } from "@/types/domain";
 
 type ContactChoice = "unset" | "always" | "once" | "declined";
+type InviteStep = "choice" | "picker";
 
 const FRIEND_CANDIDATES: GroupInviteMember[] = [
   { id: "friend-amit", displayName: "Amit Sharma", detail: "Friend on PocketSplit", email: "amit@pocketsplit.app", source: "friends" },
@@ -54,9 +55,9 @@ const mapContact = (contact: Contacts.Contact, index: number): GroupInviteMember
 
 export const AddGroupMembersScreen = () => {
   const router = useRouter();
-  const { groupId } = useLocalSearchParams<{ groupId?: string }>();
+  const { groupId, next } = useLocalSearchParams<{ groupId?: string; next?: string }>();
   const theme = useAppTheme();
-  const group = useAppStore((state) => state.groups.find((item) => item.id === groupId));
+  const group = useAppStore((state) => state.groups.find((item) => item.id === groupId && !item.deletedAt));
   const addGroupMembers = useAppStore((state) => state.addGroupMembers);
   const selectedMembers = useGroupInviteDraftStore((state) => state.selectedMembers);
   const toggleMember = useGroupInviteDraftStore((state) => state.toggleMember);
@@ -68,6 +69,7 @@ export const AddGroupMembersScreen = () => {
   const [contacts, setContacts] = useState<GroupInviteMember[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactsError, setContactsError] = useState<string | null>(null);
+  const [step, setStep] = useState<InviteStep>("choice");
 
   const loadContacts = useCallback(async () => {
     setLoadingContacts(true);
@@ -157,9 +159,57 @@ export const AddGroupMembersScreen = () => {
 
   const hasContactsPermission = contactStatus === Contacts.PermissionStatus.GRANTED;
   const existingMemberNames = useMemo(() => new Set(group?.members.map((member) => member.displayName.trim().toLowerCase()) ?? []), [group?.members]);
+  const shouldContinueToSplit = next === "split";
+  const inviteLink = group ? `https://pocketsplit.app/join/${group.id.replace(/^group-/, "").slice(0, 8).toUpperCase()}` : null;
+
+  const goBack = () => {
+    if (step === "picker") {
+      setStep("choice");
+      return;
+    }
+
+    router.back();
+  };
+
+  const shareInviteLink = async () => {
+    if (!group || !inviteLink) {
+      Alert.alert("Create group first", "Create the group before sharing an invite link.");
+      return;
+    }
+
+    try {
+      await Share.share({
+        title: `Join ${group.name} on PocketSplit`,
+        message: `Join ${group.name} on PocketSplit: ${inviteLink}`,
+        url: inviteLink
+      });
+    } catch {
+      Alert.alert("Share failed", "Could not open the share sheet. Please try again.");
+    }
+  };
+
+  const skipForNow = () => {
+    if (groupId) {
+      clearMembers();
+      router.replace(`/modals/group-detail/${groupId}`);
+      return;
+    }
+
+    router.back();
+  };
 
   const done = () => {
-    if (groupId && selectedMembers.length > 0) {
+    if (!groupId) {
+      router.back();
+      return;
+    }
+
+    if (shouldContinueToSplit && selectedMembers.length === 0) {
+      Alert.alert("Add members first", "Add at least one member before creating the first split.");
+      return;
+    }
+
+    if (selectedMembers.length > 0) {
       const now = Date.now();
       const members: SplitMember[] = selectedMembers
         .filter((member) => !existingMemberNames.has(member.displayName.trim().toLowerCase()))
@@ -173,21 +223,65 @@ export const AddGroupMembersScreen = () => {
       clearMembers();
     }
 
+    if (shouldContinueToSplit) {
+      router.replace(`/modals/add-split-expense?groupId=${groupId}`);
+      return;
+    }
+
     router.back();
   };
 
   return (
-    <Screen>
+    <Screen contentStyle={styles.screenContent}>
       <View style={styles.header}>
-        <Button variant="ghost" size="compact" icon="chevron-back" onPress={() => router.back()}>
-          Back
-        </Button>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={goBack}
+          style={({ pressed }) => [
+            styles.backControl,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              shadowColor: theme.colors.shadow,
+              opacity: pressed ? 0.7 : 1
+            }
+          ]}
+        >
+          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+        </Pressable>
         <View style={styles.headerCopy}>
-          <AppText variant="hero">Add members</AppText>
-          <AppText muted>Search app friends or choose people from your phone contacts.</AppText>
+          <AppText variant="hero">{step === "choice" ? "Invite members" : "Add members"}</AppText>
+          <AppText muted>
+            {step === "choice"
+              ? "Add people directly or share the group link."
+              : shouldContinueToSplit
+                ? "Add members first. The split screen opens next."
+                : "Search app friends or choose people from your phone contacts."}
+          </AppText>
         </View>
       </View>
 
+      {step === "choice" ? (
+        <View style={styles.choiceStack}>
+          <InviteChoice
+            icon="person-add-outline"
+            title="Add members"
+            body="Choose friends or phone contacts"
+            badge="Recommended"
+            onPress={() => setStep("picker")}
+          />
+          <InviteChoice
+            icon="link-outline"
+            title="Share a link"
+            body="Send the group invite URL"
+            onPress={shareInviteLink}
+          />
+        </View>
+      ) : null}
+
+      {step === "picker" ? (
+        <>
       <TextField label="Search" value={query} onChangeText={setQuery} placeholder="Search name, phone, or email" leftIcon="search-outline" />
 
       <View style={[styles.segment, { backgroundColor: theme.colors.surfaceMuted }]}>
@@ -247,10 +341,74 @@ export const AddGroupMembersScreen = () => {
         </Card>
       ) : null}
 
-      <Button icon="checkmark-circle" onPress={done}>
-        Done
-      </Button>
+      <View style={styles.footerActions}>
+        {shouldContinueToSplit ? (
+          <Button variant="secondary" icon="arrow-forward-circle-outline" onPress={skipForNow}>
+            Skip for now
+          </Button>
+        ) : null}
+        <Button icon="checkmark-circle" onPress={done}>
+          {shouldContinueToSplit ? "Continue to split" : "Done"}
+        </Button>
+      </View>
+        </>
+      ) : null}
     </Screen>
+  );
+};
+
+const InviteChoice = ({
+  icon,
+  title,
+  body,
+  badge,
+  onPress
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  body: string;
+  badge?: string;
+  onPress: () => void;
+}) => {
+  const theme = useAppTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.choiceRow,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          shadowColor: theme.colors.shadow,
+          opacity: pressed ? 0.82 : 1
+        }
+      ]}
+    >
+      <View style={[styles.choiceIcon, { backgroundColor: theme.colors.primarySoft }]}>
+        <Ionicons name={icon} size={23} color={theme.colors.primary} />
+      </View>
+      <View style={styles.choiceCopy}>
+        <View style={styles.choiceTitleRow}>
+          <AppText variant="subtitle" style={{ color: theme.colors.text }} numberOfLines={1}>
+            {title}
+          </AppText>
+          {badge ? (
+            <View style={[styles.choiceBadge, { backgroundColor: theme.colors.primarySoft }]}>
+              <AppText variant="caption" style={styles.choiceBadgeText}>
+                {badge}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+        <AppText variant="caption" muted numberOfLines={1}>
+          {body}
+        </AppText>
+      </View>
+      <Ionicons name="chevron-forward" size={21} color={theme.colors.primary} />
+    </Pressable>
   );
 };
 
@@ -346,11 +504,74 @@ const MemberRow = ({ member, selected, onPress }: { member: GroupInviteMember; s
 };
 
 const styles = StyleSheet.create({
+  screenContent: {
+    paddingBottom: 120
+  },
   header: {
-    gap: spacing.md
+    gap: spacing.lg
+  },
+  backControl: {
+    alignSelf: "flex-start",
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 3
   },
   headerCopy: {
     gap: spacing.xs
+  },
+  footerActions: {
+    gap: spacing.sm
+  },
+  choiceStack: {
+    gap: spacing.md
+  },
+  choiceRow: {
+    height: 92,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.9,
+    shadowRadius: 28,
+    elevation: 4
+  },
+  choiceIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  choiceCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs
+  },
+  choiceTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  choiceBadge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2
+  },
+  choiceBadgeText: {
+    color: "#1769E0",
+    fontWeight: "800",
+    fontSize: 11,
+    lineHeight: 14
   },
   segment: {
     minHeight: 54,

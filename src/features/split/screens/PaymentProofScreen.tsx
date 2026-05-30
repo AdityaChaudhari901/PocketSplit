@@ -16,7 +16,8 @@ export const PaymentProofScreen = () => {
   const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const state = useAppStore();
   const addSettlement = useAppStore((store) => store.addSettlement);
-  const group = state.groups.find((item) => item.id === groupId) ?? state.groups[0];
+  const activeGroups = state.groups.filter((item) => !item.deletedAt);
+  const group = activeGroups.find((item) => item.id === groupId) ?? activeGroups[0];
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
 
